@@ -239,7 +239,7 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 	users := []models.User{}
 	for rows.Next() {
 		newUser := models.User{}
-		rows.Scan(
+        err := rows.Scan(
 			&newUser.ID,
 			&newUser.FirstName,
 			&newUser.LastName,
@@ -253,6 +253,9 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 			&newUser.CreatedAt,
 			&newUser.UpdatedAt,
 		)
+		if err != nil {
+		    return nil, err
+		}
 		users = append(users, newUser)
 	}
 	return users, nil
@@ -421,7 +424,7 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 	users := []models.User{}
 	for rows.Next() {
 		user := models.User{}
-		rows.Scan(
+        err := rows.Scan(
 			&user.ID,
 			&user.FirstName,
 			&user.LastName,
@@ -435,6 +438,9 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
+		if err != nil {
+		    return nil, err
+		}
 		users = append(users, user)
 	}
 	return users, nil
