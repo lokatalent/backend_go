@@ -150,7 +150,10 @@ func (a AuthHandler) SignIn(ctx echo.Context) error {
 
 // ProviderAuthentication handles third-party authentication.
 func (a AuthHandler) ProviderAuthentication(ctx echo.Context) error {
-	egothic.BeginAuthHandler(ctx)
+    err := egothic.BeginAuthHandler(ctx)
+    if err != nil {
+        return util.ErrInternalServer(ctx, err)
+    }
 	return nil
 }
 
