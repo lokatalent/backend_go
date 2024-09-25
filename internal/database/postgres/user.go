@@ -34,15 +34,18 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
         id,
         first_name,
         last_name,
-        email
+        email,
+        avatar,
+        password
     ) VALUES (
-        $1, $2, $3, $4
+        $1, $2, $3, $4, $5, $6
     ) RETURNING
         id,
         first_name,
         last_name,
         email,
         phone_num,
+        password,
         avatar,
         bio,
         role,
@@ -63,12 +66,15 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
 		user.FirstName,
 		user.LastName,
 		user.Email,
+		user.Avatar,
+		user.Password,
 	).Scan(
 		&newUser.ID,
 		&newUser.FirstName,
 		&newUser.LastName,
 		&newUser.Email,
 		&newUser.PhoneNum,
+		&newUser.Password,
 		&newUser.Avatar,
 		&newUser.Bio,
 		&newUser.Role,
@@ -117,6 +123,7 @@ func (u *userImplementation) GetByID(id string) (models.User, error) {
         last_name,
         email,
         phone_num,
+        password,
         avatar,
         bio,
         role,
@@ -138,6 +145,7 @@ func (u *userImplementation) GetByID(id string) (models.User, error) {
 		&newUser.LastName,
 		&newUser.Email,
 		&newUser.PhoneNum,
+		&newUser.Password,
 		&newUser.Avatar,
 		&newUser.Bio,
 		&newUser.Role,
@@ -165,6 +173,7 @@ func (u *userImplementation) GetByEmail(email string) (models.User, error) {
         last_name,
         email,
         phone_num,
+        password,
         avatar,
         bio,
         role,
@@ -186,6 +195,7 @@ func (u *userImplementation) GetByEmail(email string) (models.User, error) {
 		&newUser.LastName,
 		&newUser.Email,
 		&newUser.PhoneNum,
+		&newUser.Password,
 		&newUser.Avatar,
 		&newUser.Bio,
 		&newUser.Role,
@@ -239,7 +249,7 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 	users := []models.User{}
 	for rows.Next() {
 		newUser := models.User{}
-        err := rows.Scan(
+		err := rows.Scan(
 			&newUser.ID,
 			&newUser.FirstName,
 			&newUser.LastName,
@@ -254,7 +264,7 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 			&newUser.UpdatedAt,
 		)
 		if err != nil {
-		    return nil, err
+			return nil, err
 		}
 		users = append(users, newUser)
 	}
@@ -266,8 +276,11 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
 	stmt := `
     UPDATE users
     SET
-        phone_num = $2
-        bio = $3
+        first_name = $2,
+        last_name = $3,
+        phone_num = $4,
+        bio = $5,
+        is_verified = $6,
         updated_at = now()
     WHERE id = $1
     RETURNING
@@ -292,8 +305,11 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
 		ctx,
 		stmt,
 		user.ID,
+		user.FirstName,
+		user.LastName,
 		user.PhoneNum,
 		user.Bio,
+		user.IsVerified,
 	).Scan(
 		&user.ID,
 		&user.FirstName,
@@ -322,7 +338,7 @@ func (u *userImplementation) UpdateImage(id string, imageURL string) error {
 	stmt := `
     UPDATE users
     SET
-        avatar = $2
+        avatar = $2,
         updated_at = now()
     WHERE id = $1
     `
@@ -424,7 +440,7 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 	users := []models.User{}
 	for rows.Next() {
 		user := models.User{}
-        err := rows.Scan(
+		err := rows.Scan(
 			&user.ID,
 			&user.FirstName,
 			&user.LastName,
@@ -439,7 +455,7 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 			&user.UpdatedAt,
 		)
 		if err != nil {
-		    return nil, err
+			return nil, err
 		}
 		users = append(users, user)
 	}
