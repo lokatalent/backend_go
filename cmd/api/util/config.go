@@ -15,6 +15,11 @@ type AWSSecret struct {
 	S3Bucket        string
 }
 
+type GoogleSecret struct {
+	ClientID     string
+	ClientSecret string
+}
+
 // JSON Web Token
 type JWTSecret struct {
 	Access  string
@@ -32,7 +37,8 @@ type Config struct {
 		DSN string
 	}
 
-	AWS AWSSecret
+	AWS    AWSSecret
+	Google GoogleSecret
 }
 
 // Load reads in all required environment variable to start the
@@ -48,6 +54,10 @@ func (c *Config) Load() error {
 	}
 
 	if err := loadJWTSecrets(&c.JWT); err != nil {
+		return err
+	}
+
+	if err := loadGoogleSecrets(&c.Google); err != nil {
 		return err
 	}
 
@@ -139,6 +149,33 @@ func loadJWTSecrets(jwt *JWTSecret) error {
 
 	jwt.Access = jwtAccess
 	jwt.Refresh = jwtRefresh
+
+	return nil
+}
+
+// loadJWTSecrets loads secrets for generation JSON web tokens.
+func loadGoogleSecrets(google *GoogleSecret) error {
+	googleClientID, ok := os.LookupEnv("GOOGLE_CLIENT_ID")
+	if !ok {
+		return missingEnvVar("GOOGLE_CLIENT_ID")
+	}
+	googleClientSecret, ok := os.LookupEnv("GOOGLE_CLIENT_SECRET")
+	if !ok {
+		return missingEnvVar("GOOGLE_CLIENT_SECRET")
+	}
+
+	// validate secrets
+	if len(googleClientID) < 1 {
+		return invalidEnvVar(
+			"GOOGLE_CLIENT_ID", "string of length > 1", googleClientID)
+	}
+	if len(googleClientSecret) < 1 {
+		return invalidEnvVar(
+			"GOOGLE_CLIENT_SECRET", "string of length > 1", googleClientSecret)
+	}
+
+	google.ClientID = googleClientID
+	google.ClientSecret = googleClientSecret
 
 	return nil
 }
