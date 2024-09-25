@@ -19,6 +19,6 @@ func RequireVerification(next echo.HandlerFunc) echo.HandlerFunc {
 				Message: "User is unverified!",
 			}
 		}
-		return nil
+		return next(ctx)
 	}
 }
