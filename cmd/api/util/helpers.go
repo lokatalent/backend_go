@@ -61,6 +61,17 @@ func IsAdmin(userRole string) bool {
 	}
 }
 
+// IsValidServiceRole checks if the specified role is a valid
+// service role.
+func IsValidServiceRole(role string) bool {
+	switch role {
+	case models.SERVICE_PROVIDER, models.SERVICE_REQUESTER, models.SERVICE_BOTH:
+		return true
+	default:
+		return false
+	}
+}
+
 // ParseBool converts boolean values in string
 func ParseBool(value string) (bool, error) {
 	switch value {
