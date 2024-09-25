@@ -13,5 +13,9 @@ func setAuthRoutes(app *util.Application, engine *echo.Echo) {
 
 	auth := engine.Group("auth")
 	auth.POST("/refresh-token", handler.RefreshToken)
+	auth.GET("/:provider", handler.ProviderAuthentication)
+	auth.GET("/:provider/callback", handler.ProviderAuthCallback)
+	auth.POST("/signup", handler.SignUp)
+	auth.GET("/signin", handler.SignIn)
 	auth.PATCH("/verify-user", handler.VerifyUser, middleware.Authentication(app))
 }
