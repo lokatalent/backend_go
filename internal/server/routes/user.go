@@ -18,7 +18,7 @@ func setUserRoutes(app *util.Application, engine *echo.Echo) {
 		"/:id/set-role", handler.ChangeRole, middleware.Authentication(app),
 		middleware.RequireVerification)
 	user.PATCH(
-		"/:id/set-service-role", handler.ChangeServiceRole,
+		"/set-service-role", handler.ChangeServiceRole,
 		middleware.Authentication(app), middleware.RequireVerification)
 
 	// profile
@@ -26,11 +26,11 @@ func setUserRoutes(app *util.Application, engine *echo.Echo) {
 	user.GET(
 		"/profile/:id", handler.GetProfile, middleware.PublicAuthentication(app))
 	user.PATCH(
-		"/profile/:id", handler.UpdateProfile, middleware.Authentication(app))
+		"/profile/update", handler.UpdateProfile, middleware.Authentication(app))
 	user.PATCH(
-		"/profile/picture/:id", handler.UpdateProfileImage,
+		"/profile/picture-update", handler.UpdateProfileImage,
 		middleware.Authentication(app))
 	user.DELETE(
-		"/profile/picture/:id", handler.DeleteProfileImage,
+		"/profile/picture-delete", handler.DeleteProfileImage,
 		middleware.Authentication(app), middleware.RequireVerification)
 }
