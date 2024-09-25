@@ -1,6 +1,7 @@
 package handlers
 
 import (
+    "fmt"
 	"errors"
 	"net/http"
 	// "strings"
@@ -22,25 +23,28 @@ func NewUserHandler(app *util.Application) UserHandler {
 }
 
 func (u UserHandler) ListUsers(ctx echo.Context) error {
-	req := struct {
-		Page     int `query:"page" validate:"required,gte=0"`
-		PageSize int `query:"size" validate:"required,gte=0"`
+	reqData := struct {
+		Page     int `query:"page" validate:"gte=0"`
+		PageSize int `query:"size" validate:"required,gte=1"`
 	}{}
 
-	if err := ctx.Bind(&req); err != nil {
+	if err := ctx.Bind(&reqData); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if err := ctx.Validate(&reqData); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if req.Page < 1 {
-		req.Page = models.DefaultPage
+	if reqData.Page < 1 {
+		reqData.Page = models.DefaultPage
 	}
-	if req.PageSize < 1 {
-		req.PageSize = models.DefaultPageLimit
+	if reqData.PageSize < 1 {
+		reqData.PageSize = models.DefaultPageLimit
 	}
 
 	filter := models.Filter{
-		Page:  req.Page,
-		Limit: req.PageSize,
+		Page:  reqData.Page,
+		Limit: reqData.PageSize,
 	}
 
 	users, err := u.app.Repositories.User.GetAllUsers(filter)
@@ -66,30 +70,38 @@ func (u UserHandler) ListUsers(ctx echo.Context) error {
 }
 
 func (u UserHandler) Search(ctx echo.Context) error {
-	req := struct {
+	reqData := struct {
 		FirstName   string `json:"first_name"`
 		LastName    string `json:"last_name"`
 		PhoneNum    string `json:"phone_num"`
 		Role        string `json:"role"`
 		ServiceRole string `json:"service_role"`
-		Page        int    `query:"page" validate:"required,gte=0"`
-		PageSize    int    `query:"size" validate:"required,gte=0"`
+		Page        int    `query:"page" validate:"gte=0"`
+		PageSize    int    `query:"size" validate:"required,gte=1"`
 	}{}
 
-	if err := ctx.Bind(&req); err != nil {
+	if err := ctx.Bind(&reqData); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if err := ctx.Validate(&reqData); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if req.Page < 1 {
-		req.Page = models.DefaultPage
+	if reqData.Page < 1 {
+		reqData.Page = models.DefaultPage
 	}
-	if req.PageSize < 1 {
-		req.PageSize = models.DefaultPageLimit
+	if reqData.PageSize < 1 {
+		reqData.PageSize = models.DefaultPageLimit
 	}
 
 	filter := models.Filter{
-		Page:  req.Page,
-		Limit: req.PageSize,
+		FirstName:   reqData.FirstName,
+		LastName:    reqData.LastName,
+		PhoneNum:    reqData.PhoneNum,
+		Role:        reqData.Role,
+		ServiceRole: reqData.ServiceRole,
+		Page:        reqData.Page,
+		Limit:       reqData.PageSize,
 	}
 
 	users, err := u.app.Repositories.User.Search(filter)
@@ -172,7 +184,7 @@ func (u UserHandler) ChangeRole(ctx echo.Context) error {
 
 	authenticatedUser := util.ContextGetUser(ctx)
 	authUser, err := u.app.Repositories.User.GetByEmail(authenticatedUser.Email)
-	if err != nil || authUser.Role != models.USER_ADMIN_SUPER {
+	if err != nil || (authUser.Role != models.USER_ADMIN_SUPER) {
 		if err == nil {
 			return echo.NewHTTPError(
 				http.StatusUnauthorized,
@@ -190,32 +202,36 @@ func (u UserHandler) ChangeRole(ctx echo.Context) error {
 }
 
 func (u UserHandler) ChangeServiceRole(ctx echo.Context) error {
-	id := ctx.Param("id")
+	// id := ctx.Param("id")
 	newRole := ctx.QueryParam("role")
 
-	if !util.IsValidUUID(id) {
+	/*
+		if !util.IsValidUUID(id) {
+			return echo.NewHTTPError(
+				http.StatusBadRequest,
+				"invalid user id!")
+		}
+	*/
+	if !util.IsValidServiceRole(newRole) {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
-			"invalid user id!")
-	}
-	if (newRole != models.USER_REGULAR) && !util.IsAdmin(newRole) {
-		return echo.NewHTTPError(
-			http.StatusBadRequest,
-			"invalid role. expected one of regular|admin|admin_super")
+			"invalid role. expected one of service_provider|service_requester|service_both")
 	}
 
 	authenticatedUser := util.ContextGetUser(ctx)
-	authUser, err := u.app.Repositories.User.GetByEmail(authenticatedUser.Email)
-	if err != nil || !util.IsAdmin(authUser.Role) {
-		if err == nil {
-			return echo.NewHTTPError(
-				http.StatusUnauthorized,
-				"only admin can change role")
+	/*
+		authUser, err := u.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+		if err != nil || !util.IsAdmin(authUser.Role) {
+			if err == nil {
+				return echo.NewHTTPError(
+					http.StatusUnauthorized,
+					"only admin can change role")
+			}
+			return util.ErrInternalServer(ctx, err)
 		}
-		return util.ErrInternalServer(ctx, err)
-	}
+	*/
 
-	err = u.app.Repositories.User.ChangeRole(id, newRole)
+	err := u.app.Repositories.User.ChangeServiceRole(authenticatedUser.ID, newRole)
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	}
@@ -224,21 +240,54 @@ func (u UserHandler) ChangeServiceRole(ctx echo.Context) error {
 }
 
 func (u UserHandler) UpdateProfile(ctx echo.Context) error {
-	reqBody := struct {
-		Bio      string `json:"bio"`
-		PhoneNum string `json:"phone_num" validate:"len=14"`
+	reqData := struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		PhoneNum  string `json:"phone_num"`
+		Bio       string `json:"bio"`
 	}{}
 
-	if err := ctx.Bind(&reqBody); err != nil {
-		return echo.ErrBadRequest
-	}
-	if !util.IsValidPhoneNumber(reqBody.PhoneNum) {
+	if err := ctx.Bind(&reqData); err != nil {
 		return echo.ErrBadRequest
 	}
 
 	user := util.ContextGetUser(ctx)
-	user.Bio = reqBody.Bio
-	user.PhoneNum = reqBody.PhoneNum
+	existingUser, err := u.app.Repositories.User.GetByEmail(user.Email)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+    fmt.Println(existingUser.PhoneNum)
+	user.IsVerified = existingUser.IsVerified
+	user.PhoneNum = existingUser.PhoneNum
+	user.FirstName = existingUser.FirstName
+	user.LastName = existingUser.LastName
+	user.Bio = existingUser.Bio
+
+	if len(existingUser.Bio) == 0 || len(reqData.Bio) > 1 {
+		user.Bio = reqData.Bio
+	}
+
+	if len(reqData.FirstName) > 1 {
+		user.FirstName = reqData.FirstName
+	}
+
+	if len(reqData.LastName) > 1 {
+		user.LastName = reqData.LastName
+	}
+
+	if len(reqData.PhoneNum) > 1 {
+	    fmt.Println(reqData.PhoneNum)
+		if !util.IsValidPhoneNumber(reqData.PhoneNum) {
+			return echo.ErrBadRequest
+		}
+		// remove verification if user has been verified before, this is done
+		// to ensure that new phone number is verified again.
+		if existingUser.IsVerified {
+			user.IsVerified = false
+		}
+		user.PhoneNum = reqData.PhoneNum
+	}
 
 	updatedUser, err := u.app.Repositories.User.Update(user)
 	if err != nil {
