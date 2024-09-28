@@ -1,8 +1,8 @@
 package handlers
 
 import (
-    "fmt"
 	"errors"
+	// "fmt"
 	"net/http"
 	// "strings"
 
@@ -188,7 +188,7 @@ func (u UserHandler) ChangeRole(ctx echo.Context) error {
 		if err == nil {
 			return echo.NewHTTPError(
 				http.StatusUnauthorized,
-				"only admin can change role")
+				"only super admin can change role")
 		}
 		return util.ErrInternalServer(ctx, err)
 	}
@@ -257,7 +257,6 @@ func (u UserHandler) UpdateProfile(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-    fmt.Println(existingUser.PhoneNum)
 	user.IsVerified = existingUser.IsVerified
 	user.PhoneNum = existingUser.PhoneNum
 	user.FirstName = existingUser.FirstName
@@ -277,7 +276,6 @@ func (u UserHandler) UpdateProfile(ctx echo.Context) error {
 	}
 
 	if len(reqData.PhoneNum) > 1 {
-	    fmt.Println(reqData.PhoneNum)
 		if !util.IsValidPhoneNumber(reqData.PhoneNum) {
 			return echo.ErrBadRequest
 		}
@@ -293,7 +291,7 @@ func (u UserHandler) UpdateProfile(ctx echo.Context) error {
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateDetails) {
 			return echo.NewHTTPError(
-				http.StatusConflict, "conflicting details.")
+				http.StatusConflict, repository.ErrDuplicateDetails)
 		}
 		return util.ErrInternalServer(ctx, err)
 	}
