@@ -8,6 +8,11 @@ import (
 	// "strings"
 )
 
+type SendGridSecret struct {
+	APIKey string
+	Sender string
+}
+
 type AWSSecret struct {
 	Region          string
 	AccessKeyId     string
@@ -26,10 +31,18 @@ type JWTSecret struct {
 	Refresh string
 }
 
+type TwilioSecret struct {
+	APIKey     string
+	APISecret  string
+	AccountSID string
+	Sender     string
+}
+
 // Config holds configuration data loaded from .env file.
 type Config struct {
-	Env  string
-	Port int
+	Env    string
+	Port   int
+	Origin string
 
 	JWT JWTSecret
 
@@ -37,8 +50,10 @@ type Config struct {
 		DSN string
 	}
 
-	AWS    AWSSecret
-	Google GoogleSecret
+	AWS      AWSSecret
+	Google   GoogleSecret
+	SendGrid SendGridSecret
+	Twilio   TwilioSecret
 }
 
 // Load reads in all required environment variable to start the
@@ -46,6 +61,10 @@ type Config struct {
 func (c *Config) Load() error {
 	var err error
 	if c.Env, err = loadAppEnv(); err != nil {
+		return err
+	}
+
+	if c.Origin, err = loadAppOrigin(); err != nil {
 		return err
 	}
 
@@ -69,6 +88,14 @@ func (c *Config) Load() error {
 		return err
 	}
 
+	if err := loadSendGridSecrets(&c.SendGrid); err != nil {
+		return err
+	}
+
+	if err := loadTwilioSecrets(&c.Twilio); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -85,6 +112,15 @@ func loadAppEnv() (string, error) {
 	default:
 		return "", invalidEnvVar("APP_ENV", "PRODUCTION|DEVELOPMENT", env)
 	}
+}
+
+// loadAppOigin loads application origin.
+func loadAppOrigin() (string, error) {
+	origin, ok := os.LookupEnv("ORIGIN")
+	if !ok {
+		return "", missingEnvVar("ORIGIN")
+	}
+	return origin, nil
 }
 
 // loadAppPort loads application listening port.
@@ -153,7 +189,7 @@ func loadJWTSecrets(jwt *JWTSecret) error {
 	return nil
 }
 
-// loadJWTSecrets loads secrets for generation JSON web tokens.
+// loadGoogleSecrets loads secrets for Google API
 func loadGoogleSecrets(google *GoogleSecret) error {
 	googleClientID, ok := os.LookupEnv("GOOGLE_CLIENT_ID")
 	if !ok {
@@ -180,7 +216,7 @@ func loadGoogleSecrets(google *GoogleSecret) error {
 	return nil
 }
 
-// loadAWSSecrets loads secrets for generation JSON web tokens.
+// loadAWSSecrets loads secrets for AWS API.
 func loadAWSSecrets(aws *AWSSecret) error {
 	awsRegion, ok := os.LookupEnv("AWS_REGION")
 	if !ok {
@@ -220,6 +256,84 @@ func loadAWSSecrets(aws *AWSSecret) error {
 	aws.AccessKeyId = awsAccessKeyId
 	aws.SecretAccessKey = awsSecretAccessKey
 	aws.S3Bucket = awsS3Bucket
+
+	return nil
+}
+
+// loadSendGridSecrets loads secrets for SendGrid APIs.
+func loadSendGridSecrets(sendgrid *SendGridSecret) error {
+	sendGridAPIKey, ok := os.LookupEnv("SENDGRID_API_KEY")
+	if !ok {
+		return missingEnvVar("SENDGRID_API_KEY")
+	}
+	sendGridSender, ok := os.LookupEnv("SENDGRID_SENDER")
+	if !ok {
+		return missingEnvVar("SENDGRID_SENDER")
+	}
+
+	// validate secrets
+	if len(sendGridAPIKey) < 1 {
+		return invalidEnvVar(
+			"SENDGRID_API_KEY", "string of length > 1", sendGridAPIKey,
+		)
+	}
+	if len(sendGridSender) < 1 {
+		return invalidEnvVar(
+			"SENDGRID_SENDER", "string of length > 1", sendGridSender,
+		)
+	}
+
+	sendgrid.APIKey = sendGridAPIKey
+	sendgrid.Sender = sendGridSender
+
+	return nil
+}
+
+// loadTwilioSecrets loads secrets for Twilio APIs.
+func loadTwilioSecrets(twilio *TwilioSecret) error {
+	twilioAPIKey, ok := os.LookupEnv("TWILIO_API_KEY")
+	if !ok {
+		return missingEnvVar("TWILIO_API_KEY")
+	}
+	twilioSender, ok := os.LookupEnv("TWILIO_SENDER")
+	if !ok {
+		return missingEnvVar("TWILIO_SENDER")
+	}
+	twilioAPISecret, ok := os.LookupEnv("TWILIO_API_SECRET")
+	if !ok {
+		return missingEnvVar("TWILIO_API_SECRET")
+	}
+	twilioAccountSID, ok := os.LookupEnv("TWILIO_ACCOUNT_SID")
+	if !ok {
+		return missingEnvVar("TWILIO_ACCOUNT_SID")
+	}
+
+	// validate secrets
+	if len(twilioAPIKey) < 1 {
+		return invalidEnvVar(
+			"TWILIO_API_KEY", "string of length > 1", twilioAPIKey,
+		)
+	}
+	if len(twilioSender) < 1 {
+		return invalidEnvVar(
+			"TWILIO_SENDER", "string of length > 1", twilioSender,
+		)
+	}
+	if len(twilioAPISecret) < 1 {
+		return invalidEnvVar(
+			"TWILIO_API_SECRET", "string of length > 1", twilioAPISecret,
+		)
+	}
+	if len(twilioAccountSID) < 1 {
+		return invalidEnvVar(
+			"TWILIO_ACCOUNT_SID", "string of length > 1", twilioAccountSID,
+		)
+	}
+
+	twilio.APIKey = twilioAPIKey
+	twilio.Sender = twilioSender
+	twilio.AccountSID = twilioAccountSID
+	twilio.APISecret = twilioAPISecret
 
 	return nil
 }
