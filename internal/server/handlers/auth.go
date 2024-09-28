@@ -6,6 +6,7 @@ import (
 	"net/http"
 	// "strings"
 	"os"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
@@ -17,6 +18,16 @@ import (
 	"github.com/lokatalent/backend_go/internal/models"
 	"github.com/lokatalent/backend_go/internal/repository"
 	"github.com/lokatalent/backend_go/internal/server/egothic"
+)
+
+const (
+	verificationCodeMin   = 100000
+	verificationCodeMax   = 999999
+	emailVerificationTmpl = "email_verification.gotmpl"
+	phoneVerificationTmpl = "phone_verification.gotmpl"
+
+	verificationTypeEmail = "email"
+	verificationTypePhone = "phone"
 )
 
 type AuthHandler struct {
@@ -34,7 +45,10 @@ func NewAuthHandler(app *util.Application) AuthHandler {
 		google.New(
 			app.Config.Google.ClientID,
 			app.Config.Google.ClientSecret,
-			fmt.Sprintf("http://localhost:%d/auth/google/callback", app.Config.Port),
+			fmt.Sprintf(
+				"http://%s/auth/google/callback",
+				app.Config.Origin,
+			),
 			"email",
 			"profile",
 			"openid",
@@ -74,7 +88,7 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 		if errors.Is(err, repository.ErrDuplicateDetails) {
 			return echo.NewHTTPError(
 				http.StatusForbidden,
-				"user with email already exists!")
+				repository.ErrDuplicateDetails)
 		}
 		return util.ErrInternalServer(ctx, err)
 	}
@@ -118,7 +132,7 @@ func (a AuthHandler) SignIn(ctx echo.Context) error {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.NewHTTPError(
 				http.StatusNotFound,
-				"user does not exist!")
+				repository.ErrRecordNotFound)
 		}
 		return util.ErrInternalServer(ctx, err)
 	}
@@ -128,7 +142,7 @@ func (a AuthHandler) SignIn(ctx echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(
 			http.StatusUnauthorized,
-			"invalid password!")
+			ErrInvalidPassword)
 	}
 
 	// generate access and refresh tokens
@@ -150,10 +164,10 @@ func (a AuthHandler) SignIn(ctx echo.Context) error {
 
 // ProviderAuthentication handles third-party authentication.
 func (a AuthHandler) ProviderAuthentication(ctx echo.Context) error {
-    err := egothic.BeginAuthHandler(ctx)
-    if err != nil {
-        return util.ErrInternalServer(ctx, err)
-    }
+	err := egothic.BeginAuthHandler(ctx)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
 	return nil
 }
 
@@ -218,7 +232,7 @@ func (a AuthHandler) RefreshToken(ctx echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
-			"invalid or expired refresh token")
+			ErrInvalidToken)
 	}
 
 	// retrieve user details to generate new access token
@@ -245,19 +259,6 @@ func (a AuthHandler) RefreshToken(ctx echo.Context) error {
 }
 
 func (a AuthHandler) VerifyUser(ctx echo.Context) error {
-	reqData := struct {
-		Email    string `json:"email" validate:"required,email"`
-		PhoneNum string `json:"phone_num" validate:"required,len=14"`
-		Status   bool   `json:"status" validate:"required"`
-	}{}
-
-	if err := ctx.Bind(&reqData); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	if err := ctx.Validate(&reqData); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-
 	authenticatedUser := util.ContextGetUser(ctx)
 	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
 	if err != nil {
@@ -270,30 +271,219 @@ func (a AuthHandler) VerifyUser(ctx echo.Context) error {
 	// prevent multiple verification
 	if fetchedUser.IsVerified {
 		return echo.NewHTTPError(
-			http.StatusConflict,
-			"user is already verified!")
+			http.StatusForbidden,
+			ErrAlreadyVerified)
 	}
 
-	if !util.IsValidEmail(reqData.Email) {
+	if !fetchedUser.EmailVerified {
 		return echo.NewHTTPError(
-			http.StatusBadRequest,
-			"invalid email address!")
+			http.StatusFailedDependency,
+			ErrVerificationDependency)
 	}
-	if !util.IsValidPhoneNumber(reqData.PhoneNum) {
+	if !fetchedUser.PhoneVerified {
 		return echo.NewHTTPError(
-			http.StatusBadRequest,
-			"invalid phone number!")
+			http.StatusFailedDependency,
+			ErrVerificationDependency)
 	}
 
-	err = a.app.Repositories.User.Verify(authenticatedUser.ID, reqData.Status)
+	err = a.app.Repositories.User.Verify(authenticatedUser.ID, true)
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	} else {
-		fetchedUser.IsVerified = reqData.Status
+		fetchedUser.IsVerified = true
 	}
 
 	// generate new access and refresh tokens
 	accessToken, refreshToken, expiration, err := util.GenerateTokens(a.app, &fetchedUser)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	resp := response.AuthResponse{
+		TokensResponse: response.TokensResponse{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			ExpiresAt:    expiration,
+		},
+		UserResponse: response.UserResponseFromModel(&fetchedUser),
+	}
+
+	return ctx.JSON(http.StatusOK, resp)
+}
+
+func (a AuthHandler) VerifyContact(ctx echo.Context) error {
+	reqVerificationType := ctx.QueryParam("verification_type")
+
+	if !util.ValidVerificationType(reqVerificationType) {
+		return echo.ErrBadRequest
+	}
+
+	authenticatedUser := util.ContextGetUser(ctx)
+	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.ErrNotFound
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	// prevent multiple email verification
+	if (reqVerificationType == verificationTypeEmail) && fetchedUser.EmailVerified {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			ErrAlreadyVerified)
+	}
+	if (reqVerificationType == verificationTypePhone) && fetchedUser.PhoneVerified {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			ErrAlreadyVerified)
+	}
+
+	// ensure no multiple active verification code
+	activeCode, err := a.app.Repositories.User.GetVerificationCode(
+		fetchedUser.ID, reqVerificationType)
+	if err != nil {
+		// do not flag not found error
+		if !errors.Is(err, repository.ErrRecordNotFound) {
+			return util.ErrInternalServer(ctx, err)
+		}
+	} else {
+		switch time.Now().Compare(activeCode.ExpiresAt) {
+		case -1:
+			// code is still active
+			return echo.NewHTTPError(
+				http.StatusForbidden,
+				"verification code has already been sent.",
+			)
+		case 0, 1:
+			// remove expired code and proceed to send new one.
+			err = a.app.Repositories.User.DeleteVerificationCode(
+				fetchedUser.ID, reqVerificationType)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+		}
+	}
+
+	verificationCode := util.RandomInt(verificationCodeMin, verificationCodeMax)
+
+	// send verification code
+	err = a.app.Mailer.Send(
+		fetchedUser.Email,
+		emailVerificationTmpl,
+		struct {
+			FirstName string
+			Code      int
+		}{
+			FirstName: fetchedUser.FirstName,
+			Code:      int(verificationCode),
+		},
+	)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	// create new verification code
+	err = a.app.Repositories.User.CreateVerificationCode(
+		fetchedUser.ID, reqVerificationType, int(verificationCode))
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	return ctx.JSON(http.StatusOK, "verification code sent.")
+}
+
+func (a AuthHandler) VerifyContactCallback(ctx echo.Context) error {
+	reqData := struct {
+		Code int `json:"verification_code" validate:"required"`
+	}{}
+	if err := ctx.Bind(&reqData); err != nil {
+		return echo.ErrBadRequest
+	}
+	if err := ctx.Validate(&reqData); err != nil {
+		return echo.ErrBadRequest
+	}
+	if reqData.Code < verificationCodeMin || reqData.Code > verificationCodeMax {
+		return echo.ErrBadRequest
+	}
+
+	reqVerificationType := ctx.QueryParam("verification_type")
+	if !util.ValidVerificationType(reqVerificationType) {
+		return echo.ErrBadRequest
+	}
+
+	authenticatedUser := util.ContextGetUser(ctx)
+	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.ErrNotFound
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	// prevent multiple email verification
+	if (reqVerificationType == verificationTypeEmail) && fetchedUser.EmailVerified {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			ErrAlreadyVerified)
+	}
+	if (reqVerificationType == verificationTypePhone) && fetchedUser.PhoneVerified {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			ErrAlreadyVerified)
+	}
+
+	activeCode, err := a.app.Repositories.User.GetVerificationCode(
+		fetchedUser.ID, reqVerificationType)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.NewHTTPError(
+				http.StatusForbidden,
+				ErrInvalidVerificationCode)
+		}
+		return util.ErrInternalServer(ctx, err)
+	} else {
+		switch time.Now().Compare(activeCode.ExpiresAt) {
+		case -1:
+			// code is still active
+			if activeCode.Code != reqData.Code {
+				return echo.NewHTTPError(
+					http.StatusForbidden,
+					ErrInvalidVerificationCode)
+			}
+		case 0, 1:
+			// expired code.
+			err = a.app.Repositories.User.DeleteVerificationCode(
+				fetchedUser.ID, reqVerificationType)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+			return echo.NewHTTPError(
+				http.StatusForbidden,
+				ErrExpiredVerificationCode)
+		}
+	}
+
+	err = a.app.Repositories.User.VerifyContact(
+		fetchedUser.ID, reqVerificationType, true)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	} else {
+		if reqVerificationType == verificationTypeEmail {
+			fetchedUser.EmailVerified = true
+		} else {
+			fetchedUser.PhoneVerified = true
+		}
+	}
+
+	// generate new access and refresh tokens
+	accessToken, refreshToken, expiration, err := util.GenerateTokens(a.app, &fetchedUser)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	err = a.app.Repositories.User.DeleteVerificationCode(
+		fetchedUser.ID, reqVerificationType)
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	}
