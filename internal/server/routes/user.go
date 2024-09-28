@@ -24,7 +24,7 @@ func setUserRoutes(app *util.Application, engine *echo.Echo) {
 	// profile
 	user.GET("/profile", handler.GetOwnProfile, middleware.Authentication(app))
 	user.GET(
-		"/profile/:id", handler.GetProfile, middleware.PublicAuthentication(app))
+		"/:id/profile", handler.GetProfile, middleware.PublicAuthentication(app))
 	user.PATCH(
 		"/profile/update", handler.UpdateProfile, middleware.Authentication(app))
 	user.PATCH(
