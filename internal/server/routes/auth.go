@@ -18,4 +18,10 @@ func setAuthRoutes(app *util.Application, engine *echo.Echo) {
 	auth.POST("/signup", handler.SignUp)
 	auth.GET("/signin", handler.SignIn)
 	auth.PATCH("/verify-user", handler.VerifyUser, middleware.Authentication(app))
+	auth.GET(
+		"/verify-user/contact", handler.VerifyContact,
+		middleware.Authentication(app))
+	auth.PATCH(
+		"/verify-user/contact/callback", handler.VerifyContactCallback,
+		middleware.Authentication(app))
 }
