@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/mail"
 	"net/textproto"
 	"regexp"
@@ -81,5 +82,19 @@ func ParseBool(value string) (bool, error) {
 		return false, nil
 	default:
 		return false, errors.New("Invalid boolean string")
+	}
+}
+
+// RandomInt generates a radom integer between min and max
+func RandomInt(min, max int64) int64 {
+	return min + rand.Int63n(max-min+1)
+}
+
+func ValidVerificationType(value string) bool {
+	switch value {
+	case "email", "phone":
+		return true
+	default:
+		return false
 	}
 }
