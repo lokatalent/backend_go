@@ -7,16 +7,18 @@ import (
 )
 
 type UserResponse struct {
-	ID          string `json:"id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Email       string `json:"email"`
-	PhoneNum    string `json:"phone_num"`
-	Bio         string `json:"bio"`
-	Avatar      string `json:"avatar"`
-	Role        string `json:"role"`
-	ServiceRole string `json:"service_role"`
-	IsVerified  bool   `json:"is_verified"`
+	ID            string `json:"id"`
+	FirstName     string `json:"first_name"`
+	LastName      string `json:"last_name"`
+	Email         string `json:"email"`
+	PhoneNum      string `json:"phone_num"`
+	Bio           string `json:"bio"`
+	Avatar        string `json:"avatar"`
+	Role          string `json:"role"`
+	ServiceRole   string `json:"service_role"`
+	IsVerified    bool   `json:"is_verified"`
+	EmailVerified bool   `json:"email_verified"`
+	PhoneVerified bool   `json:"phone_verified"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
