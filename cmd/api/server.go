@@ -17,8 +17,10 @@ import (
 
 func serveApp(config *util.Config, db *sql.DB) error {
 	repos := &repository.Repositories{
-		User:    postgres.NewUserImplementation(db),
-		Storage: s3.NewStorageInfrastructure(config.AWS.S3Bucket),
+		User:           postgres.NewUserImplementation(db),
+		Storage:        s3.NewStorageInfrastructure(config.AWS.S3Bucket),
+		Commission:     postgres.NewCommissionImplementation(db),
+		ServicePricing: postgres.NewServicePricingImplementation(db),
 	}
 
 	app := util.Application{
@@ -42,6 +44,22 @@ func serveApp(config *util.Config, db *sql.DB) error {
 
 	engine := routes.Engine(&app)
 
+	/*
+		switch app.Config.Env {
+		case util.ENVIRONMENT_PRODUCTION:
+			if err := engine.Start(fmt.Sprintf(":%d", app.Config.Port)); err != nil {
+				return err
+			}
+		default:
+			if err := engine.StartTLS(
+				fmt.Sprintf(":%d", app.Config.Port),
+				app.Config.CertPath,
+				app.Config.CertKeyPath,
+			); err != nil {
+				return err
+			}
+		}
+	*/
 	if err := engine.Start(fmt.Sprintf(":%d", app.Config.Port)); err != nil {
 		return err
 	}
