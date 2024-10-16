@@ -40,7 +40,9 @@ type TwilioSecret struct {
 
 // Config holds configuration data loaded from .env file.
 type Config struct {
-	Env    string
+	Env string
+	// CertPath    string
+	// CertKeyPath string
 	Port   int
 	Origin string
 
@@ -63,6 +65,14 @@ func (c *Config) Load() error {
 	if c.Env, err = loadAppEnv(); err != nil {
 		return err
 	}
+	/*
+		if c.CertPath, err = loadAppCertPath(); err != nil {
+			return err
+		}
+		if c.CertKeyPath, err = loadAppCertKeyPath(); err != nil {
+			return err
+		}
+	*/
 
 	if c.Origin, err = loadAppOrigin(); err != nil {
 		return err
@@ -107,12 +117,34 @@ func loadAppEnv() (string, error) {
 	}
 
 	switch env {
-	case "PRODUCTION", "DEVELOPMENT":
+	case ENVIRONMENT_PRODUCTION, ENVIRONMENT_DEVELOPMENT, ENVIRONMENT_STAGING:
 		return env, nil
 	default:
 		return "", invalidEnvVar("APP_ENV", "PRODUCTION|DEVELOPMENT", env)
 	}
 }
+
+/*
+// loadAppEnv loads application SSL certificate path.
+func loadAppCertPath() (string, error) {
+	env, ok := os.LookupEnv("APP_CERT_PATH")
+	if !ok {
+		return "", missingEnvVar("APP_CERT_PATH")
+	}
+
+	return env, nil
+}
+
+// loadAppEnv loads application SSL certificate key path.
+func loadAppCertKeyPath() (string, error) {
+	env, ok := os.LookupEnv("APP_CERT_KEY_PATH")
+	if !ok {
+		return "", missingEnvVar("APP_CERT_KEY_PATH")
+	}
+
+	return env, nil
+}
+*/
 
 // loadAppOigin loads application origin.
 func loadAppOrigin() (string, error) {
