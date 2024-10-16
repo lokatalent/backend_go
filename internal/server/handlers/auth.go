@@ -25,9 +25,6 @@ const (
 	verificationCodeMax   = 999999
 	emailVerificationTmpl = "email_verification.gotmpl"
 	phoneVerificationTmpl = "phone_verification.gotmpl"
-
-	verificationTypeEmail = "email"
-	verificationTypePhone = "phone"
 )
 
 type AuthHandler struct {
@@ -46,7 +43,7 @@ func NewAuthHandler(app *util.Application) AuthHandler {
 			app.Config.Google.ClientID,
 			app.Config.Google.ClientSecret,
 			fmt.Sprintf(
-				"http://%s/auth/google/callback",
+				"%s/auth/google/callback",
 				app.Config.Origin,
 			),
 			"email",
@@ -62,7 +59,8 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 	reqData := struct {
 		FirstName string `json:"first_name" validate:"required"`
 		LastName  string `json:"last_name" validate:"required"`
-		Email     string `json:"email" validate:"required,email"`
+		Email     string `json:"email"`
+		PhoneNum  string `json:"phone_num"`
 		Password  string `json:"password" validate:"required,min=8"`
 	}{}
 
@@ -72,18 +70,38 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 	if err := ctx.Validate(&reqData); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+	if len(reqData.PhoneNum) == 0 && len(reqData.Email) == 0 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"valid email or phone_num is required!",
+		)
+	}
+	if reqData.Email != "" && !util.IsValidEmail(reqData.Email) {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			ErrInvalidEmail,
+		)
+	}
+	if reqData.PhoneNum != "" && !util.IsValidPhoneNumber(reqData.PhoneNum) {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			ErrInvalidPhone,
+		)
+	}
 
 	hashedPassword, err := util.HashPassword(reqData.Password)
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-	user, err := a.app.Repositories.User.Create(models.User{
+	user := models.User{
 		FirstName: reqData.FirstName,
 		LastName:  reqData.LastName,
 		Email:     reqData.Email,
+		PhoneNum:  reqData.PhoneNum,
 		Password:  hashedPassword,
-	})
+	}
+	err = a.app.Repositories.User.Create(&user)
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateDetails) {
 			return echo.NewHTTPError(
@@ -116,7 +134,8 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 // from the formdata
 func (a AuthHandler) SignIn(ctx echo.Context) error {
 	reqData := struct {
-		Email    string `json:"email" validate:"required,email"`
+		Email    string `json:"email"`
+		PhoneNum string `json:"phone_num"`
 		Password string `json:"password" validate:"required,min=8"`
 	}{}
 
@@ -127,7 +146,19 @@ func (a AuthHandler) SignIn(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	user, err := a.app.Repositories.User.GetByEmail(reqData.Email)
+	var user models.User
+	var err error
+	switch {
+	case util.IsValidEmail(reqData.Email):
+		user, err = a.app.Repositories.User.GetByEmail(reqData.Email)
+	case util.IsValidPhoneNumber(reqData.PhoneNum):
+		user, err = a.app.Repositories.User.GetByPhone(reqData.PhoneNum)
+	default:
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"valid email or phone_num is required!",
+		)
+	}
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.NewHTTPError(
@@ -182,13 +213,13 @@ func (a AuthHandler) ProviderAuthCallback(ctx echo.Context) error {
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			// create a new user
-			newUser := models.User{
+			fetchedUser = models.User{
 				Email:     user.Email,
 				FirstName: user.FirstName,
 				LastName:  user.LastName,
 				Avatar:    user.AvatarURL,
 			}
-			fetchedUser, err = a.app.Repositories.User.Create(newUser)
+			err = a.app.Repositories.User.Create(&fetchedUser)
 			if err != nil {
 				return util.ErrInternalServer(ctx, err)
 			}
@@ -236,7 +267,7 @@ func (a AuthHandler) RefreshToken(ctx echo.Context) error {
 	}
 
 	// retrieve user details to generate new access token
-	user, err := a.app.Repositories.User.GetByEmail(claims.Email)
+	user, err := a.app.Repositories.User.GetByID(claims.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.ErrNotFound
@@ -260,7 +291,7 @@ func (a AuthHandler) RefreshToken(ctx echo.Context) error {
 
 func (a AuthHandler) VerifyUser(ctx echo.Context) error {
 	authenticatedUser := util.ContextGetUser(ctx)
-	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+	fetchedUser, err := a.app.Repositories.User.GetByID(authenticatedUser.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.ErrNotFound
@@ -275,16 +306,18 @@ func (a AuthHandler) VerifyUser(ctx echo.Context) error {
 			ErrAlreadyVerified)
 	}
 
-	if !fetchedUser.EmailVerified {
+	if !fetchedUser.EmailVerified || !fetchedUser.PhoneVerified {
 		return echo.NewHTTPError(
 			http.StatusFailedDependency,
 			ErrVerificationDependency)
 	}
-	if !fetchedUser.PhoneVerified {
-		return echo.NewHTTPError(
-			http.StatusFailedDependency,
-			ErrVerificationDependency)
-	}
+	/*
+		if !fetchedUser.PhoneVerified {
+			return echo.NewHTTPError(
+				http.StatusFailedDependency,
+				ErrVerificationDependency)
+		}
+	*/
 
 	err = a.app.Repositories.User.Verify(authenticatedUser.ID, true)
 	if err != nil {
@@ -319,7 +352,7 @@ func (a AuthHandler) VerifyContact(ctx echo.Context) error {
 	}
 
 	authenticatedUser := util.ContextGetUser(ctx)
-	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+	fetchedUser, err := a.app.Repositories.User.GetByID(authenticatedUser.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.ErrNotFound
@@ -328,12 +361,12 @@ func (a AuthHandler) VerifyContact(ctx echo.Context) error {
 	}
 
 	// prevent multiple email verification
-	if (reqVerificationType == verificationTypeEmail) && fetchedUser.EmailVerified {
+	if (reqVerificationType == models.EMAIL_VERIFICATION) && fetchedUser.EmailVerified {
 		return echo.NewHTTPError(
 			http.StatusForbidden,
 			ErrAlreadyVerified)
 	}
-	if (reqVerificationType == verificationTypePhone) && fetchedUser.PhoneVerified {
+	if (reqVerificationType == models.PHONE_VERIFICATION) && fetchedUser.PhoneVerified {
 		return echo.NewHTTPError(
 			http.StatusForbidden,
 			ErrAlreadyVerified)
@@ -368,24 +401,46 @@ func (a AuthHandler) VerifyContact(ctx echo.Context) error {
 	verificationCode := util.RandomInt(verificationCodeMin, verificationCodeMax)
 
 	// send verification code
-	err = a.app.Mailer.Send(
-		fetchedUser.Email,
-		emailVerificationTmpl,
-		struct {
-			FirstName string
-			Code      int
-		}{
-			FirstName: fetchedUser.FirstName,
-			Code:      int(verificationCode),
-		},
-	)
+	switch reqVerificationType {
+	case models.EMAIL_VERIFICATION:
+		err = a.app.Mailer.Send(
+			fetchedUser.Email,
+			emailVerificationTmpl,
+			struct {
+				FirstName string
+				Code      int
+			}{
+				FirstName: fetchedUser.FirstName,
+				Code:      int(verificationCode),
+			},
+		)
+	case models.PHONE_VERIFICATION:
+		err = a.app.SMSSender.Send(
+			fetchedUser.PhoneNum,
+			phoneVerificationTmpl,
+			struct {
+				FirstName string
+				Code      int
+			}{
+				FirstName: fetchedUser.FirstName,
+				Code:      int(verificationCode),
+			},
+		)
+	default:
+		return echo.ErrBadRequest
+	}
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	}
 
 	// create new verification code
 	err = a.app.Repositories.User.CreateVerificationCode(
-		fetchedUser.ID, reqVerificationType, int(verificationCode))
+		&models.UserVerificationCode{
+			UserID:      fetchedUser.ID,
+			ContactType: reqVerificationType,
+			Code:        int(verificationCode),
+		},
+	)
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	}
@@ -413,7 +468,7 @@ func (a AuthHandler) VerifyContactCallback(ctx echo.Context) error {
 	}
 
 	authenticatedUser := util.ContextGetUser(ctx)
-	fetchedUser, err := a.app.Repositories.User.GetByEmail(authenticatedUser.Email)
+	fetchedUser, err := a.app.Repositories.User.GetByID(authenticatedUser.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrRecordNotFound) {
 			return echo.ErrNotFound
@@ -422,12 +477,12 @@ func (a AuthHandler) VerifyContactCallback(ctx echo.Context) error {
 	}
 
 	// prevent multiple email verification
-	if (reqVerificationType == verificationTypeEmail) && fetchedUser.EmailVerified {
+	if (reqVerificationType == models.EMAIL_VERIFICATION) && fetchedUser.EmailVerified {
 		return echo.NewHTTPError(
 			http.StatusForbidden,
 			ErrAlreadyVerified)
 	}
-	if (reqVerificationType == verificationTypePhone) && fetchedUser.PhoneVerified {
+	if (reqVerificationType == models.PHONE_VERIFICATION) && fetchedUser.PhoneVerified {
 		return echo.NewHTTPError(
 			http.StatusForbidden,
 			ErrAlreadyVerified)
@@ -469,7 +524,7 @@ func (a AuthHandler) VerifyContactCallback(ctx echo.Context) error {
 	if err != nil {
 		return util.ErrInternalServer(ctx, err)
 	} else {
-		if reqVerificationType == verificationTypeEmail {
+		if reqVerificationType == models.EMAIL_VERIFICATION {
 			fetchedUser.EmailVerified = true
 		} else {
 			fetchedUser.PhoneVerified = true
