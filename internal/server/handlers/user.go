@@ -620,7 +620,7 @@ func (u UserHandler) UploadCertifications(ctx echo.Context) error {
 
 		src, err := image.Open()
 		if err != nil {
-			util.ErrInternalServer(ctx, err)
+			return util.ErrInternalServer(ctx, err)
 		}
 		defer src.Close()
 
@@ -753,7 +753,7 @@ func (u UserHandler) UploadServiceImages(ctx echo.Context) error {
 
 		src, err := image.Open()
 		if err != nil {
-			util.ErrInternalServer(ctx, err)
+			return util.ErrInternalServer(ctx, err)
 		}
 		defer src.Close()
 
