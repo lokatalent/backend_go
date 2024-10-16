@@ -51,7 +51,7 @@ func (s *SMSSender) Send(recipient string, templateFile string, data any) error 
 	}
 
 	shortMsg := &bytes.Buffer{}
-	err = tmpl.Execute(shortMsg, data)
+	err = tmpl.ExecuteTemplate(shortMsg, "textBody", data)
 	if err != nil {
 		return err
 	}
