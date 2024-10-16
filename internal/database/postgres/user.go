@@ -23,7 +23,7 @@ func NewUserImplementation(db *sql.DB) repository.UserRepository {
 }
 
 // Create adds new user to the database.
-func (u *userImplementation) Create(user models.User) (models.User, error) {
+func (u *userImplementation) Create(user *models.User) error {
 	// generate an ID for new user
 	if user.ID == "" {
 		user.ID = uuid.NewString()
@@ -35,10 +35,11 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
         first_name,
         last_name,
         email,
+        phone_num,
         avatar,
         password
     ) VALUES (
-        $1, $2, $3, $4, $5, $6
+        $1, $2, $3, $4, $5, $6, $7
     ) RETURNING
         id,
         first_name,
@@ -47,7 +48,10 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
         phone_num,
         password,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -60,7 +64,6 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
 	defer cancel()
 
-	newUser := models.User{}
 	err := u.DB.QueryRowContext(
 		ctx,
 		stmt,
@@ -68,36 +71,40 @@ func (u *userImplementation) Create(user models.User) (models.User, error) {
 		user.FirstName,
 		user.LastName,
 		user.Email,
+		user.PhoneNum,
 		user.Avatar,
 		user.Password,
 	).Scan(
-		&newUser.ID,
-		&newUser.FirstName,
-		&newUser.LastName,
-		&newUser.Email,
-		&newUser.PhoneNum,
-		&newUser.Password,
-		&newUser.Avatar,
-		&newUser.Bio,
-		&newUser.Role,
-		&newUser.ServiceRole,
-		&newUser.IsVerified,
-		&newUser.EmailVerified,
-		&newUser.PhoneVerified,
-		&newUser.CreatedAt,
-		&newUser.UpdatedAt,
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.PhoneNum,
+		&user.Password,
+		&user.Avatar,
+		&user.Gender,
+		&user.DateOfBirth,
+		&user.Bio,
+		&user.Address,
+		&user.Role,
+		&user.ServiceRole,
+		&user.IsVerified,
+		&user.EmailVerified,
+		&user.PhoneVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
 	)
 	if err != nil {
 		switch {
 		case strings.Contains(err.Error(), duplicateEmail),
 			strings.Contains(err.Error(), duplicatePhone):
-			return models.User{}, repository.ErrDuplicateDetails
+			return repository.ErrDuplicateDetails
 		default:
-			return models.User{}, err
+			return err
 		}
 	}
 
-	return newUser, nil
+	return nil
 }
 
 // GetByID retrieves user from the database using their assigned ID.
@@ -111,7 +118,10 @@ func (u *userImplementation) GetByID(id string) (models.User, error) {
         phone_num,
         password,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -135,7 +145,10 @@ func (u *userImplementation) GetByID(id string) (models.User, error) {
 		&newUser.PhoneNum,
 		&newUser.Password,
 		&newUser.Avatar,
+		&newUser.Gender,
+		&newUser.DateOfBirth,
 		&newUser.Bio,
+		&newUser.Address,
 		&newUser.Role,
 		&newUser.ServiceRole,
 		&newUser.IsVerified,
@@ -165,7 +178,10 @@ func (u *userImplementation) GetByEmail(email string) (models.User, error) {
         phone_num,
         password,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -189,7 +205,70 @@ func (u *userImplementation) GetByEmail(email string) (models.User, error) {
 		&newUser.PhoneNum,
 		&newUser.Password,
 		&newUser.Avatar,
+		&newUser.Gender,
+		&newUser.DateOfBirth,
 		&newUser.Bio,
+		&newUser.Address,
+		&newUser.Role,
+		&newUser.ServiceRole,
+		&newUser.IsVerified,
+		&newUser.EmailVerified,
+		&newUser.PhoneVerified,
+		&newUser.CreatedAt,
+		&newUser.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.User{}, repository.ErrRecordNotFound
+		}
+		return models.User{}, err
+	}
+
+	return newUser, nil
+}
+
+// GetByPhone retrieves user from the database using their phone number.
+func (u *userImplementation) GetByPhone(phone string) (models.User, error) {
+	stmt := `
+    SELECT 
+        id,
+        first_name,
+        last_name,
+        email,
+        phone_num,
+        password,
+        avatar,
+        gender,
+        date_of_birth,
+        bio,
+        address,
+        role,
+        service_role,
+        is_verified,
+        email_verified,
+        phone_verified,
+        created_at,
+        updated_at
+    FROM users 
+    WHERE phone_num = $1;
+    `
+
+	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
+	defer cancel()
+
+	newUser := models.User{}
+	err := u.DB.QueryRowContext(ctx, stmt, phone).Scan(
+		&newUser.ID,
+		&newUser.FirstName,
+		&newUser.LastName,
+		&newUser.Email,
+		&newUser.PhoneNum,
+		&newUser.Password,
+		&newUser.Avatar,
+		&newUser.Gender,
+		&newUser.DateOfBirth,
+		&newUser.Bio,
+		&newUser.Address,
 		&newUser.Role,
 		&newUser.ServiceRole,
 		&newUser.IsVerified,
@@ -218,7 +297,10 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
         email,
         phone_num,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -252,7 +334,10 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 			&newUser.Email,
 			&newUser.PhoneNum,
 			&newUser.Avatar,
+			&newUser.Gender,
+			&newUser.DateOfBirth,
 			&newUser.Bio,
+			&newUser.Address,
 			&newUser.Role,
 			&newUser.ServiceRole,
 			&newUser.IsVerified,
@@ -270,7 +355,7 @@ func (u *userImplementation) GetAllUsers(filter models.Filter) ([]models.User, e
 }
 
 // Update changes the user's data
-func (u *userImplementation) Update(user models.User) (models.User, error) {
+func (u *userImplementation) Update(user *models.User) error {
 	stmt := `
     UPDATE users
     SET
@@ -278,7 +363,10 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
         last_name = $3,
         phone_num = $4,
         bio = $5,
-        is_verified = $6,
+        address = $6,
+        is_verified = $7,
+        gender = $8,
+        date_of_birth = $9,
         updated_at = now()
     WHERE id = $1
     RETURNING
@@ -288,7 +376,10 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
         email,
         phone_num,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -309,7 +400,10 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
 		user.LastName,
 		user.PhoneNum,
 		user.Bio,
+		user.Address,
 		user.IsVerified,
+		user.Gender,
+		user.DateOfBirth,
 	).Scan(
 		&user.ID,
 		&user.FirstName,
@@ -317,7 +411,10 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
 		&user.Email,
 		&user.PhoneNum,
 		&user.Avatar,
+		&user.Gender,
+		&user.DateOfBirth,
 		&user.Bio,
+		&user.Address,
 		&user.Role,
 		&user.ServiceRole,
 		&user.IsVerified,
@@ -330,12 +427,12 @@ func (u *userImplementation) Update(user models.User) (models.User, error) {
 		switch {
 		case strings.Contains(err.Error(), duplicateEmail),
 			strings.Contains(err.Error(), duplicatePhone):
-			return models.User{}, repository.ErrDuplicateDetails
+			return repository.ErrDuplicateDetails
 		default:
-			return models.User{}, err
+			return err
 		}
 	}
-	return user, nil
+	return nil
 }
 
 // UpdateImage updates the user's profile image
@@ -407,7 +504,10 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
         email,
         phone_num,
         avatar,
+        gender,
+        date_of_birth,
         bio,
+        address,
         role,
         service_role,
         is_verified,
@@ -421,9 +521,11 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
         ($2 = '' OR last_name = $2) AND
         ($3 = '' OR phone_num = $3) AND
         ($4 = '' OR role = $4) AND
-        ($5 = '' OR service_role = $5)
+        ($5 = '' OR service_role = $5) AND
+        ($6 = '' OR email = $6) AND
+        ($7 = '' OR gender = $7)
     ORDER BY first_name
-    LIMIT $6 OFFSET $7
+    LIMIT $8 OFFSET $9
     `
 
 	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
@@ -437,6 +539,8 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 		filter.PhoneNum,
 		filter.Role,
 		filter.ServiceRole,
+		filter.Email,
+		filter.Gender,
 		filter.Limit,
 		filter.Offset(),
 	)
@@ -454,7 +558,10 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 			&user.Email,
 			&user.PhoneNum,
 			&user.Avatar,
+			&user.Gender,
+			&user.DateOfBirth,
 			&user.Bio,
+			&user.Address,
 			&user.Role,
 			&user.ServiceRole,
 			&user.IsVerified,
@@ -470,8 +577,6 @@ func (u *userImplementation) Search(filter models.Filter) ([]models.User, error)
 	}
 	return users, nil
 }
-
-// Verification queries
 
 // Verify updates the verification status of a user.
 func (u *userImplementation) Verify(id string, status bool) error {
@@ -520,81 +625,5 @@ func (u *userImplementation) VerifyContact(id, verificationType string, status b
 		}
 		return err
 	}
-	return nil
-}
-
-func (u *userImplementation) CreateVerificationCode(id, verificationType string, code int) error {
-	stmt := `
-    INSERT INTO verifications (
-        user_id,
-        code,
-        verification_type
-    ) VALUES (
-        $1, $2, $3
-    )`
-
-	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
-	defer cancel()
-
-	_, err := u.DB.ExecContext(ctx, stmt, id, code, verificationType)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (u *userImplementation) GetVerificationCode(id, verificationType string) (models.UserVerificationCode, error) {
-	stmt := `
-    SELECT 
-        user_id,
-        code,
-        verification_type,
-        created_at,
-        expires_at
-    FROM verifications
-    WHERE user_id=$1 AND verification_type=$2
-    `
-
-	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
-	defer cancel()
-
-	newCode := models.UserVerificationCode{}
-	err := u.DB.QueryRowContext(
-		ctx,
-		stmt,
-		id,
-		verificationType,
-	).Scan(
-		&newCode.UserID,
-		&newCode.Code,
-		&newCode.ContactType,
-		&newCode.CreatedAt,
-		&newCode.ExpiresAt,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return models.UserVerificationCode{}, repository.ErrRecordNotFound
-		}
-		return models.UserVerificationCode{}, err
-	}
-
-	return newCode, nil
-}
-
-func (u *userImplementation) DeleteVerificationCode(id, verificationType string) error {
-	stmt := `
-    DELETE FROM verifications
-        WHERE user_id=$1 AND verification_type=$2
-    `
-
-	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
-	defer cancel()
-
-	_, err := u.DB.ExecContext(ctx, stmt, id, verificationType)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
