@@ -73,6 +73,15 @@ func IsValidServiceRole(role string) bool {
 	}
 }
 
+func IsValidServiceType(serviceType string) bool {
+	switch serviceType {
+	case models.SERVICE_CLEANING, models.SERVICE_PLUMBING, models.SERVICE_COOKING:
+		return true
+	default:
+		return false
+	}
+}
+
 // ParseBool converts boolean values in string
 func ParseBool(value string) (bool, error) {
 	switch value {
@@ -92,7 +101,7 @@ func RandomInt(min, max int64) int64 {
 
 func ValidVerificationType(value string) bool {
 	switch value {
-	case "email", "phone":
+	case models.EMAIL_VERIFICATION, models.PHONE_VERIFICATION:
 		return true
 	default:
 		return false
