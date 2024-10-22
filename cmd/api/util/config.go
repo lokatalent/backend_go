@@ -193,7 +193,17 @@ func loadDB() (string, error) {
 		return "", missingEnvVar("DB_PASSWORD")
 	}
 
-	return fmt.Sprintf(DB_CONN_FMT, dbUser, dbPass, dbHost, dbPort, dbName), nil
+	appEnv, err := loadAppEnv()
+	if err != nil {
+		return "", err
+	}
+
+	switch appEnv {
+	case ENVIRONMENT_DEVELOPMENT:
+		return fmt.Sprintf(DB_CONN_FMT_TEST, dbUser, dbPass, dbHost, dbPort, dbName), nil
+	default:
+		return fmt.Sprintf(DB_CONN_FMT, dbUser, dbPass, dbHost, dbPort, dbName), nil
+	}
 }
 
 // loadJWTSecrets loads secrets for generation JSON web tokens.

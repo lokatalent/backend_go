@@ -10,7 +10,8 @@ const (
 )
 
 // Database connection string format
-const DB_CONN_FMT = "postgres://%s:%s@%s:%s/%s?sslmode=disable"
+const DB_CONN_FMT = "postgres://%s:%s@%s:%s/%s"
+const DB_CONN_FMT_TEST = "postgres://%s:%s@%s:%s/%s?sslmode=disable"
 
 const ContextKeyUser = "user"
 
