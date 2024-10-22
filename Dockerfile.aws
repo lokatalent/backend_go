@@ -1,0 +1,16 @@
+# build stage
+FROM golang:1.23-alpine3.20 AS builder
+WORKDIR /app
+COPY . .
+# RUN apk add make
+# RUN make build/app
+RUN go build -o lokatalent_app ./cmd/api
+
+# run stage
+FROM alpine:3.20
+WORKDIR /app
+COPY --from=builder /app/lokatalent_app .
+COPY --from=builder /app/.env .
+
+EXPOSE 4000
+CMD [ "/app/lokatalent_app" ]
