@@ -14,7 +14,7 @@ import (
 	"github.com/lokatalent/backend_go/cmd/api/util"
 )
 
-const DB_TIMEOUT = 5 * time.Second
+const DB_TIMEOUT = 10 * time.Second
 
 // openDB returns a new PostgreSQL connection pool.
 func openDB(config *util.Config) (*sql.DB, error) {
