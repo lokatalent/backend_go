@@ -12,4 +12,7 @@ var (
 	ErrExpiredVerificationCode = errors.New("verification code has expired.")
 	ErrInvalidVerificationCode = errors.New("invalid verification code.")
 	ErrInvalidServiceType      = errors.New("invalid service type.")
+	ErrInvalidBookingType      = errors.New("invalid booking type.")
+
+	ErrInvalidPlaceAddress = errors.New("Invalid address. Expected street_addr, city, state, country")
 )
