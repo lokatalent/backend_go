@@ -8,6 +8,7 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -82,6 +83,34 @@ func IsValidServiceType(serviceType string) bool {
 	}
 }
 
+func IsValidBookingType(bookingType string) bool {
+	switch bookingType {
+	case models.BOOKING_INSTANT, models.BOOKING_SCHEDULED:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidBookingStatus(status string) bool {
+	switch status {
+	case models.BOOKING_OPEN, models.BOOKING_CANCELED, models.BOOKING_IN_PROGRESS,
+		models.BOOKING_COMPLETED, models.BOOKING_ACCEPT, models.BOOKING_REJECT:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidNotificationType(notificationType string) bool {
+	switch notificationType {
+	case models.NOTIFICATION_TYPE_BOOKING:
+		return true
+	default:
+		return false
+	}
+}
+
 // ParseBool converts boolean values in string
 func ParseBool(value string) (bool, error) {
 	switch value {
@@ -106,4 +135,30 @@ func ValidVerificationType(value string) bool {
 	default:
 		return false
 	}
+}
+
+// checks if a place address satisfy the expected format.
+func ValidPlaceAddress(address string) bool {
+	if len(strings.Split(address, ",")) < 4 {
+		return false
+	}
+	return true
+}
+
+func ParseDate(date string) (time.Time, error) {
+	parsedTime, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		return time.Time{}, errors.New("invalid date format. Expected YYYY-MM-DD")
+	}
+
+	return parsedTime, nil
+}
+
+func ParseTime(timeStr string) (time.Time, error) {
+	parsedTime, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		return time.Time{}, errors.New("invalid time format. Expected HH:MM:SS+ZZ:ZZ")
+	}
+
+	return parsedTime, nil
 }
