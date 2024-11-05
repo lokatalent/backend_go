@@ -300,18 +300,31 @@ func (u UserHandler) ChangeServiceRole(ctx echo.Context) error {
 
 func (u UserHandler) UpdateProfilePersonal(ctx echo.Context) error {
 	reqData := struct {
-		FirstName   string    `json:"first_name"`
-		LastName    string    `json:"last_name"`
-		Email       string    `json:"email"`
-		PhoneNum    string    `json:"phone_num"`
-		Bio         string    `json:"bio"`
-		DateOfBirth time.Time `json:"date_of_birth"`
-		Address     string    `json:"address"`
-		Gender      string    `json:"gender"`
+		FirstName   string `json:"first_name"`
+		LastName    string `json:"last_name"`
+		Email       string `json:"email"`
+		PhoneNum    string `json:"phone_num"`
+		Bio         string `json:"bio"`
+		DateOfBirth string `json:"date_of_birth"`
+		Address     string `json:"address"`
+		Gender      string `json:"gender"`
 	}{}
 
 	if err := ctx.Bind(&reqData); err != nil {
 		return echo.ErrBadRequest
+	}
+
+	if !util.ValidPlaceAddress(reqData.Address) {
+		return echo.NewHTTPError(http.StatusBadRequest, ErrInvalidPlaceAddress)
+	}
+
+	var parsedDOB time.Time
+	var err error
+	if reqData.DateOfBirth != "" {
+		parsedDOB, err = util.ParseDate(reqData.DateOfBirth)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
 	}
 
 	user := util.ContextGetUser(ctx)
@@ -336,8 +349,8 @@ func (u UserHandler) UpdateProfilePersonal(ctx echo.Context) error {
 		user.Gender = reqData.Gender
 	}
 
-	if existingUser.DateOfBirth.IsZero() || !reqData.DateOfBirth.IsZero() {
-		user.DateOfBirth = reqData.DateOfBirth
+	if existingUser.DateOfBirth.IsZero() || !parsedDOB.IsZero() {
+		user.DateOfBirth = parsedDOB
 	}
 
 	if len(existingUser.Address) == 0 || len(reqData.Address) > 0 {
@@ -380,18 +393,35 @@ func (u UserHandler) UpdateProfileEducation(ctx echo.Context) error {
 	isNewInfo := false
 
 	reqData := struct {
-		Institute  string    `json:"institute"`
-		Degree     string    `json:"degree"`
-		Discipline string    `json:"discipline"`
-		Start      time.Time `json:"start"`
-		Finish     time.Time `json:"finish"`
+		Institute  string `json:"institute"`
+		Degree     string `json:"degree"`
+		Discipline string `json:"discipline"`
+		Start      string `json:"start"`
+		Finish     string `json:"finish"`
 	}{}
 
 	if err := ctx.Bind(&reqData); err != nil {
 		return echo.ErrBadRequest
 	}
 
-	if reqData.Start.IsZero() || !reqData.Start.Before(reqData.Finish) {
+	var parsedStartDate, parsedEndDate time.Time
+	var err error
+
+	if reqData.Start != "" {
+		parsedStartDate, err = util.ParseDate(reqData.Start)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+	}
+
+	if reqData.Finish != "" {
+		parsedEndDate, err = util.ParseDate(reqData.Finish)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+	}
+
+	if parsedStartDate.IsZero() || !parsedStartDate.Before(parsedEndDate) {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
 			"invalid start and finish date.",
@@ -424,8 +454,13 @@ func (u UserHandler) UpdateProfileEducation(ctx echo.Context) error {
 		existingEduInfo.Discipline = reqData.Discipline
 	}
 
-	existingEduInfo.Start = reqData.Start
-	existingEduInfo.Finish = reqData.Finish
+	if existingEduInfo.Start.IsZero() || !parsedStartDate.IsZero() {
+		existingEduInfo.Start = parsedStartDate
+	}
+
+	if existingEduInfo.Finish.IsZero() || !parsedEndDate.IsZero() {
+		existingEduInfo.Finish = parsedEndDate
+	}
 
 	if isNewInfo {
 		existingEduInfo.UserID = existingUser.ID
