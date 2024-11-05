@@ -33,6 +33,7 @@ type AuthHandler struct {
 
 func NewAuthHandler(app *util.Application) AuthHandler {
 	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
+	store.MaxAge(int(util.RefreshTokenDuration.Seconds()))
 	store.Options.HttpOnly = true
 	store.Options.Secure = (app.Config.Env == util.ENVIRONMENT_PRODUCTION)
 	egothic.SetStore(store)
@@ -306,7 +307,7 @@ func (a AuthHandler) VerifyUser(ctx echo.Context) error {
 			ErrAlreadyVerified)
 	}
 
-	if !fetchedUser.EmailVerified || !fetchedUser.PhoneVerified {
+	if !fetchedUser.EmailVerified && !fetchedUser.PhoneVerified {
 		return echo.NewHTTPError(
 			http.StatusFailedDependency,
 			ErrVerificationDependency)
