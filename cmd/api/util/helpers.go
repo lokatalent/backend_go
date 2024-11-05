@@ -139,10 +139,7 @@ func ValidVerificationType(value string) bool {
 
 // checks if a place address satisfy the expected format.
 func ValidPlaceAddress(address string) bool {
-	if len(strings.Split(address, ",")) < 4 {
-		return false
-	}
-	return true
+	return len(strings.Split(address, ",")) >= 4
 }
 
 func ParseDate(date string) (time.Time, error) {
