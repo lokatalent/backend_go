@@ -109,12 +109,14 @@ CREATE TABLE IF NOT EXISTS "bookings" (
   "id"				UUID PRIMARY KEY NOT NULL,
   "requester_id"	UUID NOT NULL,
   "provider_id"		UUID, -- made nullable for future update.
-  "requester_loc"	TEXT NOT NULL,
+  "requester_addr"	TEXT NOT NULL,
   "service_type"	TEXT NOT NULL,
   "booking_type"	TEXT NOT NULL,
   "service_desc"	TEXT NOT NULL,
-  "service_begin"	TIMESTAMPTZ NOT NULL DEFAULT 'now()',
-  "service_end"		TIMESTAMPTZ NOT NULL,
+  "start_time"		TIMETZ NOT NULL DEFAULT '00:00:00',
+  "end_time"		TIMETZ NOT NULL DEFAULT 'now()',
+  "start_date"		DATE NOT NULL DEFAULT '0001-01-01',
+  "end_date"		DATE NOT NULL DEFAULT 'now()',
   "total_price"		DECIMAL(10,2) NOT NULL,
   "actual_price"	DECIMAL(10,2) GENERATED ALWAYS AS (
   	compute_actual_price(total_price)
@@ -122,6 +124,25 @@ CREATE TABLE IF NOT EXISTS "bookings" (
   "status"			TEXT NOT NULL DEFAULT 'open',
   "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
   "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "rejected_bookings" (
+  "id"				UUID PRIMARY KEY NOT NULL,
+  "user_id"			UUID NOT NULL,
+  "booking_id"		UUID NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "notifications" (
+  "id"				UUID PRIMARY KEY NOT NULL,
+  "type"			TEXT NOT NULL,
+  "user_id"			UUID NOT NULL,
+  
+  -- for bookings
+  "booking_id"		UUID,
+  
+  "message"			TEXT NOT NULL DEFAULT '',
+  "seen"			BOOLEAN NOT NULL DEFAULT false,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS unique_user_id_contact_type
@@ -176,3 +197,19 @@ ALTER TABLE IF EXISTS "bookings"
 ALTER TABLE IF EXISTS "bookings"
 	ADD FOREIGN KEY ("provider_id")
 	REFERENCES "users" ("id");
+
+ALTER TABLE IF EXISTS "notifications"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS "notifications"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id") ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS "rejected_bookings"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id");
+
+ALTER TABLE IF EXISTS "rejected_bookings"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id");

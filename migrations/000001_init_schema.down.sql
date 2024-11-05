@@ -1,3 +1,7 @@
+DROP TABLE IF EXISTS "notifications";
+
+DROP TABLE IF EXISTS "rejected_bookings";
+
 DROP TABLE IF EXISTS "bookings";
 
 DROP TABLE IF EXISTS "service_commission";
