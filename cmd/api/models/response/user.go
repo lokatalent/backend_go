@@ -44,21 +44,23 @@ type PublicUserResponse struct {
 
 func UserResponseFromModel(user *models.User) UserResponse {
 	response := UserResponse{
-		ID:          user.ID,
-		FirstName:   user.FirstName,
-		LastName:    user.LastName,
-		Email:       user.Email,
-		PhoneNum:    user.PhoneNum,
-		Gender:      user.Gender,
-		DateOfBirth: user.DateOfBirth,
-		Bio:         user.Bio,
-		Address:     user.Address,
-		Avatar:      user.Avatar,
-		Role:        user.Role,
-		ServiceRole: user.ServiceRole,
-		IsVerified:  user.IsVerified,
-		CreatedAt:   user.CreatedAt.UTC(),
-		UpdatedAt:   user.UpdatedAt.UTC(),
+		ID:            user.ID,
+		FirstName:     user.FirstName,
+		LastName:      user.LastName,
+		Email:         user.Email,
+		PhoneNum:      user.PhoneNum,
+		Gender:        user.Gender,
+		DateOfBirth:   user.DateOfBirth,
+		Bio:           user.Bio,
+		Address:       user.Address,
+		Avatar:        user.Avatar,
+		Role:          user.Role,
+		ServiceRole:   user.ServiceRole,
+		IsVerified:    user.IsVerified,
+		EmailVerified: user.EmailVerified,
+		PhoneVerified: user.PhoneVerified,
+		CreatedAt:     user.CreatedAt.UTC(),
+		UpdatedAt:     user.UpdatedAt.UTC(),
 	}
 
 	return response
