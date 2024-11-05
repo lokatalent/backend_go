@@ -23,6 +23,7 @@ type AWSSecret struct {
 type GoogleSecret struct {
 	ClientID     string
 	ClientSecret string
+	MapSecret    string
 }
 
 // JSON Web Token
@@ -241,6 +242,10 @@ func loadGoogleSecrets(google *GoogleSecret) error {
 	if !ok {
 		return missingEnvVar("GOOGLE_CLIENT_SECRET")
 	}
+	googleMapSecret, ok := os.LookupEnv("GOOGLE_MAP_API_KEY")
+	if !ok {
+		return missingEnvVar("GOOGLE_MAP_API_KEY")
+	}
 
 	// validate secrets
 	if len(googleClientID) < 1 {
@@ -251,9 +256,14 @@ func loadGoogleSecrets(google *GoogleSecret) error {
 		return invalidEnvVar(
 			"GOOGLE_CLIENT_SECRET", "string of length > 1", googleClientSecret)
 	}
+	if len(googleMapSecret) < 1 {
+		return invalidEnvVar(
+			"GOOGLE_MAP_API_KEY", "string of length > 1", googleMapSecret)
+	}
 
 	google.ClientID = googleClientID
 	google.ClientSecret = googleClientSecret
+	google.MapSecret = googleMapSecret
 
 	return nil
 }
