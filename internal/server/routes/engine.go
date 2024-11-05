@@ -63,6 +63,8 @@ func Engine(app *util.Application) *echo.Echo {
 	setAuthRoutes(app, engine)
 	setUserRoutes(app, engine)
 	setServicePricingRoutes(app, engine)
+	setBookingRoutes(app, engine)
+	setNotificationRoutes(app, engine)
 
 	return engine
 }
