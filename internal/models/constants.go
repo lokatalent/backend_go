@@ -32,10 +32,18 @@ const (
 	BOOKING_OPEN        = "open"
 	BOOKING_COMPLETED   = "completed"
 	BOOKING_IN_PROGRESS = "in_progress"
+	BOOKING_CANCELED    = "canceled"
+	BOOKING_ACCEPT      = "accept"
+	BOOKING_REJECT      = "reject"
 
 	// booking type
 	BOOKING_INSTANT   = "instant"
 	BOOKING_SCHEDULED = "scheduled"
+)
+
+// notifications
+const (
+	NOTIFICATION_TYPE_BOOKING = "booking"
 )
 
 const (
