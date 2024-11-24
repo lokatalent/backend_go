@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS "users_bank_info" (
   "bank_name"		TEXT NOT NULL,
   "account_name"	TEXT NOT NULL,
   "account_num"		TEXT UNIQUE NOT NULL,
+  "bank_code"		TEXT NOT NULL,
   "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
   "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
 );
@@ -145,6 +146,48 @@ CREATE TABLE IF NOT EXISTS "notifications" (
   "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
 );
 
+CREATE TABLE IF NOT EXISTS "wallets" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "user_id"		UUID NOT NULL,
+  "credits"		DECIMAL(10,2) NOT NULL,
+  "debits"		DECIMAL(10,2) NOT NULL,
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payments" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "type"		TEXT NOT NULL,
+  "booking_id"	UUID,
+  "amount"		DECIMAL(10,2) NOT NULL,
+  "payment_ref"	UUID UNIQUE NOT NULL,
+  "status"			TEXT NOT NULL,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payment_access_codes" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "payment_id"	UUID NOT NULL REFERENCES "payments" ("id"),
+  "access_code"	TEXT UNIQUE NOT NULL,
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payment_recipient_codes" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "user_id"		UUID NOT NULL REFERENCES "users" ("id"),
+  "recipient_code"	TEXT UNIQUE NOT NULL,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "waitlist" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "email"		CITEXT NOT NULL DEFAULT '',
+  "status"		TEXT NOT NULL DEFAULT 'subscribed',
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS unique_user_id_contact_type
 	ON "contact_verifications" ("user_id", "contact_type");
 
@@ -160,6 +203,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_nonempty_phone_num
 
 CREATE UNIQUE INDEX IF NOT EXISTS unique_nonempty_email 
 	ON "users" ((email)) 
+	WHERE email != '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_waitlist_nonempty_email 
+	ON "waitlist" ((email)) 
 	WHERE email != '';
 
 CREATE INDEX IF NOT EXISTS idx_services_availability
@@ -211,5 +258,13 @@ ALTER TABLE IF EXISTS "rejected_bookings"
 	REFERENCES "users" ("id");
 
 ALTER TABLE IF EXISTS "rejected_bookings"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id");
+
+ALTER TABLE IF EXISTS "wallets"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id");
+	
+ALTER TABLE IF EXISTS "payments"
 	ADD FOREIGN KEY ("booking_id")
 	REFERENCES "bookings" ("id");
