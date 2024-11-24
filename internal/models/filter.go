@@ -42,6 +42,16 @@ type ServiceFilter struct {
 	Limit int
 }
 
+type PaymentFilter struct {
+	ID         string
+	BookingID  string
+	Type       string
+	PaymentRef string
+	Status     string
+	Page       int
+	Limit      int
+}
+
 func (f Filter) Offset() int {
 	return (f.Page - 1) * f.Limit
 }
@@ -56,4 +66,8 @@ func (n NotificationFilter) Offset() int {
 
 func (s ServiceFilter) Offset() int {
 	return (s.Page - 1) * s.Limit
+}
+
+func (p PaymentFilter) Offset() int {
+	return (p.Page - 1) * p.Limit
 }
