@@ -8,6 +8,10 @@ import (
 	// "strings"
 )
 
+type PaystackSecret struct {
+	APIKey string
+}
+
 type SendGridSecret struct {
 	APIKey string
 	Sender string
@@ -57,6 +61,7 @@ type Config struct {
 	Google   GoogleSecret
 	SendGrid SendGridSecret
 	Twilio   TwilioSecret
+	Paystack PaystackSecret
 }
 
 // Load reads in all required environment variable to start the
@@ -104,6 +109,10 @@ func (c *Config) Load() error {
 	}
 
 	if err := loadTwilioSecrets(&c.Twilio); err != nil {
+		return err
+	}
+
+	if err := loadPaystackSecrets(&c.Paystack); err != nil {
 		return err
 	}
 
@@ -386,6 +395,25 @@ func loadTwilioSecrets(twilio *TwilioSecret) error {
 	twilio.Sender = twilioSender
 	twilio.AccountSID = twilioAccountSID
 	twilio.APISecret = twilioAPISecret
+
+	return nil
+}
+
+// loadPaystackSecrets loads secrets for Paystack APIs.
+func loadPaystackSecrets(paystack *PaystackSecret) error {
+	paystackAPIKey, ok := os.LookupEnv("PAYSTACK_API_KEY")
+	if !ok {
+		return missingEnvVar("PAYSTACK_API_KEY")
+	}
+
+	// validate secrets
+	if len(paystackAPIKey) < 1 {
+		return invalidEnvVar(
+			"PAYSTACK_API_KEY", "string of length > 1", paystackAPIKey,
+		)
+	}
+
+	paystack.APIKey = paystackAPIKey
 
 	return nil
 }
