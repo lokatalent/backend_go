@@ -341,7 +341,14 @@ func (b BookingHandler) UpdateBookingStatus(ctx echo.Context) error {
 	var notification models.Notification
 	switch status {
 	case models.BOOKING_COMPLETED:
-		if (time.Now().UTC().Hour() - booking.EndTime.UTC().Hour()) < 0 {
+		inProgress, err := util.VerifyCompletionDateTime(
+			booking.EndTime.UTC(),
+			booking.EndDate,
+		)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
+		if inProgress {
 			return echo.NewHTTPError(
 				http.StatusForbidden,
 				"booking still in progress.",
@@ -353,6 +360,11 @@ func (b BookingHandler) UpdateBookingStatus(ctx echo.Context) error {
 				"can only change 'in_progress' booking.",
 			)
 		}
+		// send payment to service provider
+		err = payServiceProvider(ctx, b.app, &booking)
+		if err != nil {
+			return err
+		}
 		notification = models.Notification{
 			Type:    models.NOTIFICATION_TYPE_BOOKING,
 			UserID:  booking.ProviderID.String,
@@ -361,6 +373,11 @@ func (b BookingHandler) UpdateBookingStatus(ctx echo.Context) error {
 		notification.BookingID.String = booking.ID
 		notification.BookingID.Valid = true
 	case models.BOOKING_CANCELED:
+		// refund service requester for booking fee
+		err = refundServiceRequester(ctx, b.app, &booking)
+		if err != nil {
+			return err
+		}
 		notification = models.Notification{
 			Type:    models.NOTIFICATION_TYPE_BOOKING,
 			UserID:  booking.ProviderID.String,
@@ -380,9 +397,11 @@ func (b BookingHandler) UpdateBookingStatus(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-	err = b.app.Repositories.Notification.Create(&notification)
-	if err != nil {
-		return util.ErrInternalServer(ctx, err)
+	if booking.ProviderID.String != "" {
+		err = b.app.Repositories.Notification.Create(&notification)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
 	}
 	return ctx.JSON(
 		http.StatusOK,
@@ -714,6 +733,13 @@ func (b BookingHandler) SelectProvider(ctx echo.Context) error {
 		)
 	}
 
+	// check that the authenticated have enough funds to place booking,
+	// and deduct from wallet or return status code to prompt payment.
+	err = checkPaymentRequirement(ctx, b.app, &booking, &authUser)
+	if err != nil {
+		return err
+	}
+
 	notification := models.Notification{
 		Type:   models.NOTIFICATION_TYPE_BOOKING,
 		UserID: reqData.ProviderID,
@@ -731,4 +757,154 @@ func (b BookingHandler) SelectProvider(ctx echo.Context) error {
 	return ctx.JSON(
 		http.StatusOK,
 		response.NotificationResponseFromModel(notification))
+}
+
+// helpers
+
+// checkPaymentRequirement checks if payment has been made,
+// else make payment from wallet.
+func checkPaymentRequirement(ctx echo.Context, app *util.Application, booking *models.Booking, user *models.User) error {
+	payment, err := app.Repositories.Payment.GetPayment(models.PaymentFilter{
+		Type:      models.PAYMENT_TYPE_CREDIT,
+		BookingID: booking.ID,
+	})
+	if err != nil {
+		if !errors.Is(err, repository.ErrRecordNotFound) {
+			return util.ErrInternalServer(ctx, err)
+		}
+	}
+
+	// found a payment entry
+	if payment.ID != "" {
+		switch payment.Status {
+		case models.PAYMENT_STATUS_VERIFIED:
+			return nil
+		case models.PAYMENT_STATUS_CANCELED:
+			return echo.NewHTTPError(
+				http.StatusPaymentRequired,
+				"payment already canceled.",
+			)
+		default:
+			return echo.NewHTTPError(
+				http.StatusPaymentRequired,
+				"payment status not yet verified.",
+			)
+		}
+	} else { // no payment entry found
+		// check wallet balance and attempt to pay from requester's
+		// wallet.
+		wallet, err := app.Repositories.Payment.GetWallet(user.ID)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
+		if wallet.Balance >= booking.TotalPrice {
+			newPayment := models.Payment{
+				ID:         uuid.NewString(),
+				Type:       models.PAYMENT_TYPE_CREDIT,
+				PaymentRef: uuid.NewString(),
+				Amount:     booking.TotalPrice,
+				Status:     models.PAYMENT_STATUS_VERIFIED,
+			}
+			newPayment.BookingID.String = booking.ID
+			newPayment.BookingID.Valid = true
+			err = app.Repositories.Payment.CreatePayment(&newPayment)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+
+			// update wallet
+			err = app.Repositories.Payment.UpdateWallet(
+				wallet.UserID,
+				models.PAYMENT_TYPE_DEBIT,
+				booking.TotalPrice,
+			)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+		} else {
+			return echo.NewHTTPError(
+				http.StatusPaymentRequired,
+				"wallet balance is low.",
+			)
+		}
+	}
+
+	return nil
+}
+
+func payServiceProvider(ctx echo.Context, app *util.Application, booking *models.Booking) error {
+	newPayment := models.Payment{
+		ID:         uuid.NewString(),
+		Type:       models.PAYMENT_TYPE_DEBIT,
+		PaymentRef: uuid.NewString(),
+		Amount:     booking.ActualPrice,
+		Status:     models.PAYMENT_STATUS_PENDING,
+	}
+	newPayment.BookingID.String = booking.ID
+	newPayment.BookingID.Valid = true
+
+	recipientCode, err := app.Repositories.Payment.GetRecipientCode(
+		booking.ProviderID.String,
+	)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	_, err = initTransfer(
+		newPayment.PaymentRef,
+		recipientCode,
+		"booking payment.",
+		newPayment.Amount,
+		app.Config.Paystack.APIKey,
+	)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	err = app.Repositories.Payment.CreatePayment(&newPayment)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	return nil
+}
+
+func refundServiceRequester(ctx echo.Context, app *util.Application, booking *models.Booking) error {
+	payment, err := app.Repositories.Payment.GetPayment(models.PaymentFilter{
+		Type:      models.PAYMENT_TYPE_CREDIT,
+		BookingID: booking.ID,
+	})
+	if err != nil {
+		if !errors.Is(err, repository.ErrRecordNotFound) {
+			return util.ErrInternalServer(ctx, err)
+		}
+	}
+
+	if payment.Status == models.PAYMENT_STATUS_VERIFIED {
+		newPayment := models.Payment{
+			ID:         uuid.NewString(),
+			Type:       models.PAYMENT_TYPE_REFUND,
+			PaymentRef: uuid.NewString(),
+			Amount:     booking.TotalPrice,
+			Status:     models.PAYMENT_STATUS_VERIFIED,
+		}
+		newPayment.BookingID.String = booking.ID
+		newPayment.BookingID.Valid = true
+		err = app.Repositories.Payment.CreatePayment(&newPayment)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
+
+		// update requester wallet
+		err = app.Repositories.Payment.UpdateWallet(
+			booking.RequesterID,
+			models.PAYMENT_TYPE_REFUND,
+			booking.TotalPrice,
+		)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
+	}
+
+	return nil
 }
