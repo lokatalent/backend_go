@@ -8,4 +8,5 @@ type Repositories struct {
 	ServicePricing ServicePricingRepository
 	Booking        BookingRepository
 	Notification   NotificationRepository
+	Payment        PaymentRepository
 }
