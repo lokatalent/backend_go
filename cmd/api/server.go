@@ -23,6 +23,7 @@ func serveApp(config *util.Config, db *sql.DB) error {
 		ServicePricing: postgres.NewServicePricingImplementation(db),
 		Booking:        postgres.NewBookingImplementation(db),
 		Notification:   postgres.NewNotificationImplementation(db),
+		Payment:        postgres.NewPaymentImplementation(db),
 	}
 
 	app := util.Application{
