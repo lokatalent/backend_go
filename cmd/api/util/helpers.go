@@ -159,3 +159,20 @@ func ParseTime(timeStr string) (time.Time, error) {
 
 	return parsedTime, nil
 }
+
+func VerifyCompletionDateTime(endTime, endDate time.Time) (bool, error) {
+	parsedDateTime, err := time.Parse(
+		time.DateTime,
+		fmt.Sprintf(
+			"%04d-%02d-%02d %02d:%02d:%02d",
+			endDate.Year(), endDate.Month(), endDate.Day(),
+			endTime.Hour(), endTime.Minute(), endTime.Second(),
+		),
+	)
+	if err != nil {
+		return false, err
+	}
+	fmt.Println(time.Now().UTC(), parsedDateTime)
+
+	return time.Now().UTC().Before(parsedDateTime), nil
+}
