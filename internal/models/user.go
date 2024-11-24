@@ -41,6 +41,7 @@ type UserBankInfo struct {
 	BankName    string    `json:"bank_name"`
 	AccountName string    `json:"account_name"`
 	AccountNum  string    `json:"account_num"`
+	BankCode    string    `json:"bank_code"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
