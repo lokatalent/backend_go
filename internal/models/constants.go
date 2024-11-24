@@ -46,6 +46,19 @@ const (
 	NOTIFICATION_TYPE_BOOKING = "booking"
 )
 
+// payment
+const (
+	// types
+	PAYMENT_TYPE_CREDIT = "credit"
+	PAYMENT_TYPE_DEBIT  = "debit"
+	PAYMENT_TYPE_REFUND = "refund"
+
+	// statuses
+	PAYMENT_STATUS_PENDING  = "pending"
+	PAYMENT_STATUS_CANCELED = "canceled"
+	PAYMENT_STATUS_VERIFIED = "verified"
+)
+
 const (
 	DefaultPage      = 1
 	DefaultPageLimit = 10
