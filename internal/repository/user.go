@@ -41,4 +41,7 @@ type UserRepository interface {
 	CreateServiceImage(seviceImg *models.ServiceImage) error
 	GetServiceImages(userID, serviceType string) ([]models.ServiceImage, error)
 	DeleteServiceImage(id, userID, serviceType string) error
+
+	// waitlist
+	JoinWaitlist(email string) error
 }
