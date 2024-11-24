@@ -112,6 +112,13 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
+	err = a.app.Repositories.Payment.CreateWallet(&models.UserWallet{
+		UserID: user.ID,
+	})
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
 	/*
 		// generate access and refresh tokens
 		accessToken, refreshToken, expiration, err := util.GenerateTokens(a.app, &user)
@@ -224,6 +231,13 @@ func (a AuthHandler) ProviderAuthCallback(ctx echo.Context) error {
 			if err != nil {
 				return util.ErrInternalServer(ctx, err)
 			}
+
+			err = a.app.Repositories.Payment.CreateWallet(&models.UserWallet{
+				UserID: fetchedUser.ID,
+			})
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
 		} else {
 			return util.ErrInternalServer(ctx, err)
 		}
@@ -319,6 +333,17 @@ func (a AuthHandler) VerifyUser(ctx echo.Context) error {
 				ErrVerificationDependency)
 		}
 	*/
+	// check that there is bank info
+	_, err = a.app.Repositories.User.GetBankInfo(authenticatedUser.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.NewHTTPError(
+				http.StatusFailedDependency,
+				"incomplete profile, no bank information.",
+			)
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
 
 	err = a.app.Repositories.User.Verify(authenticatedUser.ID, true)
 	if err != nil {
