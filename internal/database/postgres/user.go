@@ -367,6 +367,9 @@ func (u *userImplementation) Update(user *models.User) error {
         is_verified = $7,
         gender = $8,
         date_of_birth = $9,
+        email = $10,
+        email_verified = $11,
+        phone_verified = $12,
         updated_at = now()
     WHERE id = $1
     RETURNING
@@ -404,6 +407,9 @@ func (u *userImplementation) Update(user *models.User) error {
 		user.IsVerified,
 		user.Gender,
 		user.DateOfBirth,
+		user.Email,
+		user.EmailVerified,
+		user.PhoneVerified,
 	).Scan(
 		&user.ID,
 		&user.FirstName,
@@ -625,5 +631,29 @@ func (u *userImplementation) VerifyContact(id, verificationType string, status b
 		}
 		return err
 	}
+	return nil
+}
+
+func (u *userImplementation) JoinWaitlist(email string) error {
+	id := uuid.NewString()
+	stmt := `
+    INSERT INTO waitlist (
+        id,
+        email
+    ) VALUES (
+        $1, $2
+    );
+    `
+	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
+	defer cancel()
+
+	_, err := u.DB.ExecContext(ctx, stmt, id, email)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique_waitlist_nonempty_email") {
+			return repository.ErrDuplicateDetails
+		}
+		return err
+	}
+
 	return nil
 }
