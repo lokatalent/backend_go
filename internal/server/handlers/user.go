@@ -333,51 +333,55 @@ func (u UserHandler) UpdateProfilePersonal(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-	user.IsVerified = existingUser.IsVerified
-	user.PhoneNum = existingUser.PhoneNum
-	user.FirstName = existingUser.FirstName
-	user.LastName = existingUser.LastName
-	user.Bio = existingUser.Bio
-	user.Gender = existingUser.Gender
-	user.DateOfBirth = existingUser.DateOfBirth
-
 	if len(existingUser.Bio) == 0 || len(reqData.Bio) > 1 {
-		user.Bio = reqData.Bio
+		existingUser.Bio = reqData.Bio
 	}
 
 	if len(existingUser.Gender) == 0 || len(reqData.Gender) > 0 {
-		user.Gender = reqData.Gender
+		existingUser.Gender = reqData.Gender
 	}
 
 	if existingUser.DateOfBirth.IsZero() || !parsedDOB.IsZero() {
-		user.DateOfBirth = parsedDOB
+		existingUser.DateOfBirth = parsedDOB
 	}
 
 	if len(existingUser.Address) == 0 || len(reqData.Address) > 0 {
-		user.Address = reqData.Address
+		existingUser.Address = reqData.Address
 	}
 
 	if len(reqData.FirstName) > 1 {
-		user.FirstName = reqData.FirstName
+		existingUser.FirstName = reqData.FirstName
 	}
 
 	if len(reqData.LastName) > 1 {
-		user.LastName = reqData.LastName
+		existingUser.LastName = reqData.LastName
 	}
 
 	if len(reqData.PhoneNum) > 1 {
 		if !util.IsValidPhoneNumber(reqData.PhoneNum) {
 			return ErrInvalidPhone
 		}
-		// remove verification if user has been verified before, this is done
-		// to ensure that new phone number is verified again.
-		if existingUser.IsVerified {
-			user.IsVerified = false
-		}
-		user.PhoneNum = reqData.PhoneNum
+		// remove phone verification if user phone has been verified before,
+		// this is done to ensure that new phone number is verified again.
+		existingUser.PhoneVerified = false
+		existingUser.PhoneNum = reqData.PhoneNum
 	}
 
-	err = u.app.Repositories.User.Update(&user)
+	if len(reqData.Email) > 1 {
+		if !util.IsValidEmail(reqData.Email) {
+			return ErrInvalidEmail
+		}
+		// remove email verification if user email has been verified before,
+		// this is done to ensure that new email number is verified again.
+		existingUser.EmailVerified = false
+		existingUser.Email = reqData.Email
+	}
+
+	if !existingUser.EmailVerified && !existingUser.PhoneVerified {
+		existingUser.IsVerified = false
+	}
+
+	err = u.app.Repositories.User.Update(&existingUser)
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateDetails) {
 			return echo.NewHTTPError(
@@ -386,7 +390,7 @@ func (u UserHandler) UpdateProfilePersonal(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-	return ctx.JSON(http.StatusOK, response.UserResponseFromModel(&user))
+	return ctx.JSON(http.StatusOK, response.UserResponseFromModel(&existingUser))
 }
 
 func (u UserHandler) UpdateProfileEducation(ctx echo.Context) error {
@@ -482,9 +486,10 @@ func (u UserHandler) UpdateProfileBank(ctx echo.Context) error {
 	isNewInfo := false
 
 	reqData := struct {
-		BankName    string `json:"bank_name"`
-		AccountName string `json:"account_name"`
-		AccountNum  string `json:"account_num" validate:"max=10"`
+		BankName string `json:"bank_name" validate:"required"`
+		// AccountName string `json:"account_name"`
+		AccountNum string `json:"account_num" validate:"max=10"`
+		BankCode   string `json:"bank_code" validate:"required"`
 	}{}
 
 	if err := ctx.Bind(&reqData); err != nil {
@@ -512,12 +517,79 @@ func (u UserHandler) UpdateProfileBank(ctx echo.Context) error {
 		existingBankInfo.BankName = reqData.BankName
 	}
 
-	if len(existingBankInfo.AccountName) == 0 || len(reqData.AccountName) > 1 {
-		existingBankInfo.AccountName = reqData.AccountName
-	}
+	/*
+		if len(existingBankInfo.AccountName) == 0 || len(reqData.AccountName) > 1 {
+			existingBankInfo.AccountName = reqData.AccountName
+		}
+	*/
 
 	if len(existingBankInfo.AccountNum) == 0 || len(reqData.AccountNum) > 1 {
 		existingBankInfo.AccountNum = reqData.AccountNum
+	}
+
+	if len(existingBankInfo.BankCode) == 0 || len(reqData.BankCode) > 1 {
+		existingBankInfo.BankCode = reqData.BankCode
+	}
+
+	existingBankInfo.AccountName, err = resolveAccountNumber(
+		existingBankInfo.AccountNum,
+		existingBankInfo.BankCode,
+		u.app.Config.Paystack.APIKey,
+	)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	// check for existing recipient code, and update if it exists
+	// else, create new one.
+	recipientCode, err := u.app.Repositories.Payment.GetRecipientCode(existingUser.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			recipientCode, err = createTransferRecipient(
+				existingBankInfo.AccountName,
+				existingBankInfo.AccountNum,
+				existingBankInfo.BankCode,
+				u.app.Config.Paystack.APIKey,
+			)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+
+			err = u.app.Repositories.Payment.CreateRecipientCode(
+				uuid.NewString(),
+				existingUser.ID,
+				recipientCode,
+			)
+			if err != nil {
+				return util.ErrInternalServer(ctx, err)
+			}
+		} else {
+			return util.ErrInternalServer(ctx, err)
+		}
+	} else {
+		err = deleteRecipient(recipientCode, u.app.Config.Paystack.APIKey)
+		if err != nil {
+			if errors.Is(err, errors.New(http.StatusText(http.StatusNotFound))) {
+				return util.ErrInternalServer(ctx, err)
+			}
+		}
+		recipientCode, err = createTransferRecipient(
+			existingBankInfo.AccountName,
+			existingBankInfo.AccountNum,
+			existingBankInfo.BankCode,
+			u.app.Config.Paystack.APIKey,
+		)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
+
+		err = u.app.Repositories.Payment.UpdateRecipientCode(
+			existingUser.ID,
+			recipientCode,
+		)
+		if err != nil {
+			return util.ErrInternalServer(ctx, err)
+		}
 	}
 
 	if isNewInfo {
@@ -865,4 +937,60 @@ func (u UserHandler) DeleteServiceImage(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, "image successfully deleted.")
+}
+
+// wallets
+
+func (u UserHandler) GetWallet(ctx echo.Context) error {
+	authenticatedUser := util.ContextGetUser(ctx)
+	authUser, err := u.app.Repositories.User.GetByID(authenticatedUser.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.ErrNotFound
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	wallet, err := u.app.Repositories.Payment.GetWallet(authUser.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.ErrNotFound
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	return ctx.JSON(http.StatusOK, wallet)
+}
+
+func (u UserHandler) GetDebits(ctx echo.Context) error {
+	userID := ctx.Param("id")
+
+	debits, err := u.app.Repositories.Payment.GetUserDebits(userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRecordNotFound) {
+			return echo.ErrNotFound
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	return ctx.JSON(http.StatusOK, debits)
+}
+
+func (u UserHandler) JoinWaitlist(ctx echo.Context) error {
+	email := ctx.QueryParam("email")
+	if !util.IsValidEmail(email) {
+		return echo.NewHTTPError(http.StatusBadRequest, ErrInvalidEmail)
+	}
+
+	err := u.app.Repositories.User.JoinWaitlist(email)
+	if err != nil {
+		if errors.Is(err, repository.ErrDuplicateDetails) {
+			return echo.NewHTTPError(
+				http.StatusForbidden,
+				repository.ErrDuplicateDetails,
+			)
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+	return ctx.JSON(http.StatusOK, "")
 }
