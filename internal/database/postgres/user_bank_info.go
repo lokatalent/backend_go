@@ -16,14 +16,16 @@ func (u *userImplementation) CreateBankInfo(bankInfo *models.UserBankInfo) error
         user_id,
         bank_name,
         account_name,
-        account_num
+        account_num,
+        bank_code
     ) VALUES (
-        $1, $2, $3, $4
+        $1, $2, $3, $4, $5
     ) RETURNING
         user_id,
         bank_name,
         account_name,
         account_num,
+        bank_code,
         created_at,
         updated_at;
     `
@@ -38,11 +40,13 @@ func (u *userImplementation) CreateBankInfo(bankInfo *models.UserBankInfo) error
 		bankInfo.BankName,
 		bankInfo.AccountName,
 		bankInfo.AccountNum,
+		bankInfo.BankCode,
 	).Scan(
 		&bankInfo.UserID,
 		&bankInfo.BankName,
 		&bankInfo.AccountName,
 		&bankInfo.AccountNum,
+		&bankInfo.BankCode,
 		&bankInfo.CreatedAt,
 		&bankInfo.UpdatedAt,
 	)
@@ -65,6 +69,7 @@ func (u *userImplementation) GetBankInfo(userID string) (models.UserBankInfo, er
         bank_name,
         account_name,
         account_num,
+        bank_code,
         created_at,
         updated_at
     FROM users_bank_info
@@ -80,6 +85,7 @@ func (u *userImplementation) GetBankInfo(userID string) (models.UserBankInfo, er
 		&newBankInfo.BankName,
 		&newBankInfo.AccountName,
 		&newBankInfo.AccountNum,
+		&newBankInfo.BankCode,
 		&newBankInfo.CreatedAt,
 		&newBankInfo.UpdatedAt,
 	)
@@ -101,6 +107,7 @@ func (u *userImplementation) UpdateBankInfo(bankInfo *models.UserBankInfo) error
         bank_name = $2,
         account_name = $3,
         account_num = $4,
+        bank_code = $5,
         updated_at = now()
     WHERE user_id = $1
     RETURNING
@@ -108,6 +115,7 @@ func (u *userImplementation) UpdateBankInfo(bankInfo *models.UserBankInfo) error
         bank_name,
         account_name,
         account_num,
+        bank_code,
         created_at,
         updated_at;
     `
@@ -122,11 +130,13 @@ func (u *userImplementation) UpdateBankInfo(bankInfo *models.UserBankInfo) error
 		bankInfo.BankName,
 		bankInfo.AccountName,
 		bankInfo.AccountNum,
+		bankInfo.BankCode,
 	).Scan(
 		&bankInfo.UserID,
 		&bankInfo.BankName,
 		&bankInfo.AccountName,
 		&bankInfo.AccountNum,
+		&bankInfo.BankCode,
 		&bankInfo.CreatedAt,
 		&bankInfo.UpdatedAt,
 	)
