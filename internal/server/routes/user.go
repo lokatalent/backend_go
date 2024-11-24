@@ -97,4 +97,22 @@ func setUserRoutes(app *util.Application, engine *echo.Echo) {
 		handler.DeleteServiceImage,
 		middleware.Authentication(app),
 	)
+
+	// wallet
+	user.GET(
+		"/wallet",
+		handler.GetWallet,
+		middleware.Authentication(app),
+		middleware.RequireVerification,
+	)
+	user.GET(
+		"/:id/wallet/debits",
+		handler.GetDebits,
+		middleware.Authentication(app),
+	)
+
+	user.POST(
+		"/waitlist",
+		handler.JoinWaitlist,
+	)
 }
