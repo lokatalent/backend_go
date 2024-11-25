@@ -206,7 +206,8 @@ func deleteRecipient(recipientCode, apiKey string) error {
 	URL := fmt.Sprintf("%s/%s", createRecipientURL, recipientCode)
 	client := &http.Client{Timeout: timeout}
 
-    var err error
+	var err error
+	var req *http.Request
 	req, err = http.NewRequest("DELETE", URL, nil)
 	if err != nil {
 		return err
