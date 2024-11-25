@@ -223,17 +223,19 @@ func deleteRecipient(recipientCode, apiKey string) error {
 		if err == nil {
 			var body []byte
 			body, err = io.ReadAll(resp.Body)
-			resp.Body.Close()
-			switch resp.StatusCode {
-			case http.StatusOK, http.StatusNotFound:
-				return nil
-			default:
-				err = fmt.Errorf(
-					"%s: %d %s",
-					URL,
-					resp.StatusCode,
-					string(body),
-				)
+			if err == nil {
+				resp.Body.Close()
+				switch resp.StatusCode {
+				case http.StatusOK, http.StatusNotFound:
+					return nil
+				default:
+					err = fmt.Errorf(
+						"%s: %d %s",
+						URL,
+						resp.StatusCode,
+						string(body),
+					)
+				}
 			}
 		}
 	}
