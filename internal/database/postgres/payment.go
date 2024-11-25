@@ -129,7 +129,7 @@ func (p *paymentImplementation) GetUserDebits(userID string) (float64, error) {
 }
 
 func (p *paymentImplementation) UpdateWallet(userID, paymentType string, amount float64) error {
-	stmt := ``
+	var stmt string
 	switch paymentType {
 	case models.PAYMENT_TYPE_CREDIT:
 		stmt = `
