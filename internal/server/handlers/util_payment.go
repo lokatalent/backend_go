@@ -205,7 +205,9 @@ func createTransferRecipient(accountName, accountNum, bankCode, apiKey string) (
 func deleteRecipient(recipientCode, apiKey string) error {
 	URL := fmt.Sprintf("%s/%s", createRecipientURL, recipientCode)
 	client := &http.Client{Timeout: timeout}
-	req, err := http.NewRequest("DELETE", URL, nil)
+
+    var err error
+	req, err = http.NewRequest("DELETE", URL, nil)
 	if err != nil {
 		return err
 	}
