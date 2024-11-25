@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	// "errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 )
@@ -219,7 +219,7 @@ func deleteRecipient(recipientCode, apiKey string) error {
 		resp, err = client.Do(req)
 		if err == nil {
 			var body []byte
-			body, err = ioutil.ReadAll(resp.Body)
+			body, err = io.ReadAll(resp.Body)
 			resp.Body.Close()
 			switch resp.StatusCode {
 			case http.StatusOK, http.StatusNotFound:
@@ -288,7 +288,7 @@ func execPaystackRequest(req *http.Request) (paystackResponse, error) {
 		if err == nil {
 			defer func() { resp.Body.Close() }()
 			var body []byte
-			body, err = ioutil.ReadAll(resp.Body)
+			body, err = io.ReadAll(resp.Body)
 			if err == nil {
 				switch resp.StatusCode {
 				case http.StatusOK:
