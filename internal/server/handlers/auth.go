@@ -25,6 +25,8 @@ const (
 	verificationCodeMax   = 999999
 	emailVerificationTmpl = "email_verification.gotmpl"
 	phoneVerificationTmpl = "phone_verification.gotmpl"
+	registrationTmpl      = "registration_confirmation.gotmpl"
+	waitlistTmpl          = "waitlist_confirmation.gotmpl"
 )
 
 type AuthHandler struct {
@@ -119,22 +121,22 @@ func (a AuthHandler) SignUp(ctx echo.Context) error {
 		return util.ErrInternalServer(ctx, err)
 	}
 
-	/*
-		// generate access and refresh tokens
-		accessToken, refreshToken, expiration, err := util.GenerateTokens(a.app, &user)
-		if err != nil {
-			return util.ErrInternalServer(ctx, err)
-		}
-
-		resp := response.AuthResponse{
-			TokensResponse: response.TokensResponse{
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
-				ExpiresAt:    expiration,
+	if reqData.Email != "" {
+		err := a.app.Mailer.Send(
+			user.Email,
+			registrationTmpl,
+			struct {
+				FirstName string
+				Year      int
+			}{
+				FirstName: user.FirstName,
+				Year:      time.Now().Year(),
 			},
-			UserResponse: response.UserResponseFromModel(&user),
+		)
+		if err != nil {
+			_ = util.ErrInternalServer(ctx, err)
 		}
-	*/
+	}
 	return ctx.JSON(http.StatusOK, response.PublicUserResponseFromModel(&user))
 }
 
@@ -237,6 +239,21 @@ func (a AuthHandler) ProviderAuthCallback(ctx echo.Context) error {
 			})
 			if err != nil {
 				return util.ErrInternalServer(ctx, err)
+			}
+			// send registration confirmation email
+			err = a.app.Mailer.Send(
+				fetchedUser.Email,
+				registrationTmpl,
+				struct {
+					FirstName string
+					Year      int
+				}{
+					FirstName: fetchedUser.FirstName,
+					Year:      time.Now().Year(),
+				},
+			)
+			if err != nil {
+				_ = util.ErrInternalServer(ctx, err)
 			}
 		} else {
 			return util.ErrInternalServer(ctx, err)
@@ -435,9 +452,11 @@ func (a AuthHandler) VerifyContact(ctx echo.Context) error {
 			struct {
 				FirstName string
 				Code      int
+				Year      int
 			}{
 				FirstName: fetchedUser.FirstName,
 				Code:      int(verificationCode),
+				Year:      time.Now().Year(),
 			},
 		)
 	case models.PHONE_VERIFICATION:
