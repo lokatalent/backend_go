@@ -992,5 +992,17 @@ func (u UserHandler) JoinWaitlist(ctx echo.Context) error {
 		}
 		return util.ErrInternalServer(ctx, err)
 	}
+	err = u.app.Mailer.Send(
+		email,
+		waitlistTmpl,
+		struct {
+			Year int
+		}{
+			Year: time.Now().Year(),
+		},
+	)
+	if err != nil {
+		_ = util.ErrInternalServer(ctx, err)
+	}
 	return ctx.JSON(http.StatusOK, "")
 }
