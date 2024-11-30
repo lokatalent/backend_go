@@ -1,0 +1,86 @@
+{{define "subject"}}Your Spot in Line is Confirmed{{end}}
+
+{{define "plainBody"}}
+Hi,
+
+Thank you for signing up for the waitlist for LOKATALENT! We're thrilled to have you on board.
+
+Our app is launching soon, and you're now among the first to be notified once we go live. Stay tuned for updates, and feel free to share this exciting news with your friends.
+
+If you have any questions or just want to say hi, reach out to us at support@lokatalent.com
+
+Thanks for your support,
+The LOKATALENT Team
+{{end}}
+
+{{define "htmlBody"}}
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+		    <meta charset="UTF-8">
+		    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		    <style>
+		        body {
+		        font-family: Arial, sans-serif;
+		        background-color: #f9f9f9;
+		        color: #333;
+		        margin: 0;
+		        padding: 0;
+		        }
+		        .container {
+		        max-width: 600px;
+		        margin: 20px auto;
+		        background: #ffffff;
+		        border-radius: 10px;
+		        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+		        overflow: hidden;
+		        }
+		        .header {
+		        background-color: #3377ff;
+		        padding: 20px;
+		        text-align: center;
+		        color: #ffffff;
+		        }
+		        .header .logo {
+		        display: block;
+		        margin: 0 auto 10px;
+		        width: 80px;
+		        height: auto;
+		        }
+		        .content {
+		        padding: 20px;
+		        text-align: left;
+		        }
+		        .footer {
+		        background-color: #f1f1f1;
+		        padding: 10px;
+		        text-align: center;
+		        font-size: 12px;
+		        color: #666;
+		        }
+		        a {
+		        color: #3377ff;
+		        text-decoration: none;
+		        }
+		    </style>
+		</head>
+		<body>
+		    <div class="container">
+		        <div class="header">
+		            <img class="logo" src="https://lokatalent.s3.us-east-1.amazonaws.com/lokatalent_email_logo.png" alt="LOKATALENT Logo">
+		        </div>
+		        <div class="content">
+		            <p>Hi,</p>
+		            <p>Thank you for signing up for the waitlist for <strong>LOKATALENT</strong>! We're thrilled to have you on board.</p>
+		            <p>Our app is launching soon, and you're now among the first to be notified once we go live. Stay tuned for updates, and feel free to share this exciting news with your friends.</p>
+		            <p>If you have any questions or just want to say hi, reach out to us at <a href="mailto:support@lokatalent.com">support@lokatalent.com</a>.</p>
+		            <p>Thanks for your support,</p>
+		            <p>The LOKATALENT Team</p>
+		        </div>
+		        <div class="footer">
+		            <p>&copy; {{.Year}} LOKATALENT. All rights reserved.</p>
+		        </div>
+		    </div>
+		</body>
+	</html>
+{{end}}
