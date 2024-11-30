@@ -6,4 +6,7 @@ type Repositories struct {
 	Storage        StorageRepository
 	Commission     CommissionRepository
 	ServicePricing ServicePricingRepository
+	Booking        BookingRepository
+	Notification   NotificationRepository
+	Payment        PaymentRepository
 }

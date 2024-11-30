@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS "users_bank_info" (
   "bank_name"		TEXT NOT NULL,
   "account_name"	TEXT NOT NULL,
   "account_num"		TEXT UNIQUE NOT NULL,
+  "bank_code"		TEXT NOT NULL,
   "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
   "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
 );
@@ -109,12 +110,14 @@ CREATE TABLE IF NOT EXISTS "bookings" (
   "id"				UUID PRIMARY KEY NOT NULL,
   "requester_id"	UUID NOT NULL,
   "provider_id"		UUID, -- made nullable for future update.
-  "requester_loc"	TEXT NOT NULL,
+  "requester_addr"	TEXT NOT NULL,
   "service_type"	TEXT NOT NULL,
   "booking_type"	TEXT NOT NULL,
   "service_desc"	TEXT NOT NULL,
-  "service_begin"	TIMESTAMPTZ NOT NULL DEFAULT 'now()',
-  "service_end"		TIMESTAMPTZ NOT NULL,
+  "start_time"		TIMETZ NOT NULL DEFAULT '00:00:00',
+  "end_time"		TIMETZ NOT NULL DEFAULT 'now()',
+  "start_date"		DATE NOT NULL DEFAULT '0001-01-01',
+  "end_date"		DATE NOT NULL DEFAULT 'now()',
   "total_price"		DECIMAL(10,2) NOT NULL,
   "actual_price"	DECIMAL(10,2) GENERATED ALWAYS AS (
   	compute_actual_price(total_price)
@@ -122,6 +125,67 @@ CREATE TABLE IF NOT EXISTS "bookings" (
   "status"			TEXT NOT NULL DEFAULT 'open',
   "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
   "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "rejected_bookings" (
+  "id"				UUID PRIMARY KEY NOT NULL,
+  "user_id"			UUID NOT NULL,
+  "booking_id"		UUID NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "notifications" (
+  "id"				UUID PRIMARY KEY NOT NULL,
+  "type"			TEXT NOT NULL,
+  "user_id"			UUID NOT NULL,
+  
+  -- for bookings
+  "booking_id"		UUID,
+  
+  "message"			TEXT NOT NULL DEFAULT '',
+  "seen"			BOOLEAN NOT NULL DEFAULT false,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "wallets" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "user_id"		UUID NOT NULL,
+  "credits"		DECIMAL(10,2) NOT NULL,
+  "debits"		DECIMAL(10,2) NOT NULL,
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payments" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "type"		TEXT NOT NULL,
+  "booking_id"	UUID,
+  "amount"		DECIMAL(10,2) NOT NULL,
+  "payment_ref"	UUID UNIQUE NOT NULL,
+  "status"			TEXT NOT NULL,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payment_access_codes" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "payment_id"	UUID NOT NULL REFERENCES "payments" ("id"),
+  "access_code"	TEXT UNIQUE NOT NULL,
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "payment_recipient_codes" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "user_id"		UUID NOT NULL REFERENCES "users" ("id"),
+  "recipient_code"	TEXT UNIQUE NOT NULL,
+  "created_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()',
+  "updated_at"		TIMESTAMPTZ NOT NULL DEFAULT 'now()'
+);
+
+CREATE TABLE IF NOT EXISTS "waitlist" (
+  "id"			UUID PRIMARY KEY NOT NULL,
+  "email"		CITEXT NOT NULL DEFAULT '',
+  "status"		TEXT NOT NULL DEFAULT 'subscribed',
+  "created_at"	TIMESTAMPTZ NOT NULL DEFAULT 'now()'
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS unique_user_id_contact_type
@@ -139,6 +203,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_nonempty_phone_num
 
 CREATE UNIQUE INDEX IF NOT EXISTS unique_nonempty_email 
 	ON "users" ((email)) 
+	WHERE email != '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_waitlist_nonempty_email 
+	ON "waitlist" ((email)) 
 	WHERE email != '';
 
 CREATE INDEX IF NOT EXISTS idx_services_availability
@@ -176,3 +244,27 @@ ALTER TABLE IF EXISTS "bookings"
 ALTER TABLE IF EXISTS "bookings"
 	ADD FOREIGN KEY ("provider_id")
 	REFERENCES "users" ("id");
+
+ALTER TABLE IF EXISTS "notifications"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id") ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS "notifications"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id") ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS "rejected_bookings"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id");
+
+ALTER TABLE IF EXISTS "rejected_bookings"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id");
+
+ALTER TABLE IF EXISTS "wallets"
+	ADD FOREIGN KEY ("user_id")
+	REFERENCES "users" ("id");
+	
+ALTER TABLE IF EXISTS "payments"
+	ADD FOREIGN KEY ("booking_id")
+	REFERENCES "bookings" ("id");

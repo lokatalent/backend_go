@@ -67,6 +67,9 @@ func (u UserHandler) CreateService(ctx echo.Context) error {
 	if !util.IsValidServiceType(reqData.ServiceType) {
 		return echo.NewHTTPError(http.StatusBadRequest, ErrInvalidServiceType)
 	}
+	if !util.ValidPlaceAddress(reqData.Address) {
+		return echo.NewHTTPError(http.StatusBadRequest, ErrInvalidPlaceAddress)
+	}
 
 	authenticatedUser := util.ContextGetUser(ctx)
 	authUser, err := u.app.Repositories.User.GetByID(authenticatedUser.ID)

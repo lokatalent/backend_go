@@ -7,7 +7,7 @@ on:
       - prod
 
 jobs:
-  golangci:
+  golangci-lint:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
@@ -20,6 +20,9 @@ jobs:
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
           version: v1.61
+
+          # arguments
+          args: --exclude-dirs-use-default=true
 
           # Optional: working directory, useful for monorepo
           working-directory: ./

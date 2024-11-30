@@ -32,10 +32,31 @@ const (
 	BOOKING_OPEN        = "open"
 	BOOKING_COMPLETED   = "completed"
 	BOOKING_IN_PROGRESS = "in_progress"
+	BOOKING_CANCELED    = "canceled"
+	BOOKING_ACCEPT      = "accept"
+	BOOKING_REJECT      = "reject"
 
 	// booking type
 	BOOKING_INSTANT   = "instant"
 	BOOKING_SCHEDULED = "scheduled"
+)
+
+// notifications
+const (
+	NOTIFICATION_TYPE_BOOKING = "booking"
+)
+
+// payment
+const (
+	// types
+	PAYMENT_TYPE_CREDIT = "credit"
+	PAYMENT_TYPE_DEBIT  = "debit"
+	PAYMENT_TYPE_REFUND = "refund"
+
+	// statuses
+	PAYMENT_STATUS_PENDING  = "pending"
+	PAYMENT_STATUS_CANCELED = "canceled"
+	PAYMENT_STATUS_VERIFIED = "verified"
 )
 
 const (
