@@ -39,3 +39,10 @@ type PaymentRecipientCode struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
+
+type TrackPayment struct {
+	Date         time.Time `json:"date"`
+	TotalCredits float64   `json:"total_credits"`
+	TotalDebits  float64   `json:"total_debits"`
+	TotalRefunds float64   `json:"total_refunds"`
+}

@@ -24,4 +24,10 @@ func setPaymentRoutes(app *util.Application, engine *echo.Echo) {
 		middleware.Authentication(app),
 		middleware.RequireVerification,
 	)
+	payment.GET(
+		"/track-transactions",
+		handler.TrackPayments,
+		middleware.Authentication(app),
+		middleware.RequireVerification,
+	)
 }

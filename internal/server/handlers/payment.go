@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	// "github.com/lokatalent/backend_go/cmd/api/models/response"
+	"github.com/lokatalent/backend_go/cmd/api/models/response"
 	"github.com/lokatalent/backend_go/cmd/api/util"
 	"github.com/lokatalent/backend_go/internal/models"
 	"github.com/lokatalent/backend_go/internal/repository"
@@ -219,4 +221,38 @@ func (p PaymentHandler) VerifyTransaction(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, status)
+}
+
+func (p PaymentHandler) TrackPayments(ctx echo.Context) error {
+	interval, err := strconv.Atoi(ctx.QueryParam("interval"))
+	if err != nil {
+		return echo.ErrBadRequest
+	}
+
+	authenticatedUser := util.ContextGetUser(ctx)
+	authUser, err := p.app.Repositories.User.GetByID(authenticatedUser.ID)
+	if err != nil || !util.IsAdmin(authUser.Role) {
+		if err == nil {
+			return echo.NewHTTPError(
+				http.StatusUnauthorized,
+				"only admin can track payments")
+		}
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	paymentHistory, err := p.app.Repositories.Payment.TrackPayments(interval)
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+	totalEscrow, err := p.app.Repositories.Payment.TotalEscrow()
+	if err != nil {
+		return util.ErrInternalServer(ctx, err)
+	}
+
+	return ctx.JSON(
+		http.StatusOK,
+		response.TrackPayment{
+			PaymentHistory: paymentHistory,
+			Escrow:         totalEscrow,
+		})
 }

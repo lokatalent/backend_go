@@ -431,3 +431,62 @@ func (p *paymentImplementation) DeleteAccessCode(paymentID string) error {
 
 	return nil
 }
+
+// track payments
+
+func (p *paymentImplementation) TrackPayments(interval int) ([]models.TrackPayment, error) {
+	stmt := `
+    SELECT 
+        DATE_TRUNC('day', created_at) AS date,
+        SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END) AS total_credits,
+        SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END) AS total_debits,
+        SUM(CASE WHEN type = 'refund' THEN amount ELSE 0 END) AS total_refunds
+    FROM payments
+    WHERE type IN ('credit', 'debit', 'refund') 
+      AND status = 'verified'
+      AND created_at >= NOW() - INTERVAL '1 day' * $1
+    GROUP BY DATE_TRUNC('day', created_at)
+    ORDER BY date ASC;
+    `
+	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
+	defer cancel()
+
+	rows, err := p.DB.QueryContext(ctx, stmt, interval)
+	if err != nil {
+		return nil, err
+	}
+
+	payments := []models.TrackPayment{}
+	for rows.Next() {
+		paymentHistory := models.TrackPayment{}
+		err := rows.Scan(
+			&paymentHistory.Date,
+			&paymentHistory.TotalCredits,
+			&paymentHistory.TotalDebits,
+			&paymentHistory.TotalRefunds,
+		)
+		if err != nil {
+			return nil, err
+		}
+		payments = append(payments, paymentHistory)
+	}
+	return payments, nil
+}
+
+func (p *paymentImplementation) TotalEscrow() (float64, error) {
+	stmt := `
+    SELECT
+        SUM(actual_price)
+    FROM bookings
+    WHERE status='in_progress';
+    `
+	ctx, cancel := context.WithTimeout(context.Background(), DB_QUERY_TIMEOUT)
+	defer cancel()
+
+	var totalEscrow float64
+	err := p.DB.QueryRowContext(ctx, stmt).Scan(&totalEscrow)
+	if err != nil {
+		return 0.0, err
+	}
+	return totalEscrow, nil
+}
