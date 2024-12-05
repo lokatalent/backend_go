@@ -21,4 +21,8 @@ type PaymentRepository interface {
 	GetRecipientCode(userID string) (string, error)
 	UpdateRecipientCode(userID, recipientCode string) error
 	DeleteAccessCode(paymentID string) error
+
+	// tracking payments
+	TrackPayments(interval int) ([]models.TrackPayment, error)
+	TotalEscrow() (float64, error)
 }
